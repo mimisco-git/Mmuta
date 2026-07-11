@@ -1,0 +1,6 @@
+{
+  "name": "Mmuta",
+  "description": "The complete exam and learning platform for Nigerian schools — CBT exams, live lectures, AI grading, notes, and results in one platform.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

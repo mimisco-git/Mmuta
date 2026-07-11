@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "Mmuta — Teach. Test. Trust.",
+  "short_name": "Mmuta",
+  "description": "The complete exam and learning platform for Nigerian schools. CBT exams, live lectures, AI grading, and results — in one platform.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#047857",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "categories": ["education", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Student Login",
+      "url": "/",
+      "description": "Sign in as a student to take exams and access notes"
+    },
+    {
+      "name": "Lecturer Login",
+      "url": "/",
+      "description": "Sign in as a lecturer to manage courses and assessments"
+    }
+  ]
+}

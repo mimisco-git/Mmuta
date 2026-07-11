@@ -1,0 +1,3224 @@
+import React, { useState, useEffect, useRef } from "react";
+import { BookOpen, Award, LogOut, FileText, ChevronRight, Play, Clock, AlertTriangle, CheckCircle, ShieldAlert, Send, Radio, Filter, Calendar, Sun, Moon, Camera, Upload, Loader2, ThumbsUp, ArrowLeft, Mic, Layers, BarChart2, MessageSquare, Users, X, ClipboardList, Trophy, Megaphone, TrendingUp, Bell, Pencil, ChevronDown, Download, Flame, Zap, Star, WifiOff } from "lucide-react";
+import NotificationBell from "./NotificationBell";
+import CalendarView from "./CalendarView";
+import DiscussionBoard from "./DiscussionBoard";
+import OnboardingTour from "./OnboardingTour";
+import MathText from "./MathText";
+import { Course, LectureNote, Quiz, StudentAttempt, Question } from "../types";
+import MarkdownView from "./MarkdownView";
+import UserAvatar from "./UserAvatar";
+import AvatarModal from "./AvatarModal";
+import { motion, AnimatePresence } from "motion/react";
+import SlideView from "./SlideView";
+import LiveAudioRoom from "./LiveAudioRoom";
+import SecureContent from "./SecureContent";
+
+interface StudentDashboardProps {
+  token: string;
+  user: {
+    id: string;
+    fullName: string;
+    regNumber: string;
+    department: string;
+    year: string;
+  };
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
+  onLogout: () => void;
+  deepLink?: { type: string; id: string } | null;
+}
+
+function getPeriodStatus(availableFrom?: string, availableUntil?: string) {
+  const now = new Date();
+  const from = availableFrom ? new Date(availableFrom) : null;
+  const until = availableUntil ? new Date(availableUntil) : null;
+  if (from && now < from) return { type: "upcoming" as const, from, until };
+  if (until && now > until) return { type: "expired" as const, from, until };
+  return { type: "active" as const, from, until };
+}
+
+function formatCountdown(target: Date): string {
+  const secs = Math.max(0, Math.floor((target.getTime() - Date.now()) / 1000));
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m ${s.toString().padStart(2, "0")}s`;
+  return `${m.toString().padStart(2, "0")}m ${s.toString().padStart(2, "0")}s`;
+}
+
+export default function StudentDashboard({ token, user, theme, onToggleTheme, onLogout, deepLink }: StudentDashboardProps) {
+  const [activeTab, setActiveTab] = useState<"notes" | "quizzes" | "live-classroom" | "exams" | "assignments" | "history" | "calendar" | "discussions">("notes");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [periodTick, setPeriodTick] = useState(0);
+  const [currentYear, setCurrentYear] = useState(user.year);
+  const [currentDepartment, setCurrentDepartment] = useState(user.department);
+  const [additionalDepts, setAdditionalDepts] = useState<string[]>([]);
+  const [availableDepartments, setAvailableDepartments] = useState<{ id: string; name: string }[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [selectedNote, setSelectedNote] = useState<LectureNote | null>(null);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [attempts, setAttempts] = useState<Record<string, StudentAttempt>>({});
+  const [attemptsList, setAttemptsList] = useState<any[]>([]);
+  const [examSubmissions, setExamSubmissions] = useState<any[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [dismissedAnns, setDismissedAnns] = useState<Set<string>>(new Set());
+  const [leaderboard, setLeaderboard] = useState<any[] | null>(null);
+  const [leaderboardQuizTitle, setLeaderboardQuizTitle] = useState("");
+  const [pushGranted, setPushGranted] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [avatarRefreshTrigger, setAvatarRefreshTrigger] = useState(0);
+
+  const [activeLiveSession, setActiveLiveSession] = useState<any | null>(null);
+  const [allLiveSessions, setAllLiveSessions] = useState<any[]>([]);
+  const [joinedCourseId, setJoinedCourseId] = useState<string | null>(null);
+  const [liveChats, setLiveChats] = useState<any[]>([]);
+  const [chatMessage, setChatMessage] = useState("");
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Live classroom sub-features
+  const [liveStudentTab, setLiveStudentTab] = useState<"slides" | "poll" | "chat">("slides");
+  const [audioOpen, setAudioOpen] = useState(true);
+  const [handRaised, setHandRaised] = useState(false);
+  const [myPollAnswer, setMyPollAnswer] = useState<string | null>(null);
+  const [isSpeakingAllowed, setIsSpeakingAllowed] = useState(false);
+
+  // Exam state
+  const [exams, setExams] = useState<any[]>([]);
+  const [activeExam, setActiveExam] = useState<any | null>(null);
+  const [mySubmission, setMySubmission] = useState<any | null>(null);
+  const [examAnswers, setExamAnswers] = useState("");
+  const [isSubmittingExam, setIsSubmittingExam] = useState(false);
+  const [examError, setExamError] = useState<string | null>(null);
+
+  // Assignment state
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [activeAssignment, setActiveAssignment] = useState<any | null>(null);
+  const [myAssignmentSubmission, setMyAssignmentSubmission] = useState<any | null>(null);
+  const [assignmentAnswers, setAssignmentAnswers] = useState("");
+  const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
+  const [assignmentFileData, setAssignmentFileData] = useState<string | null>(null);
+  const [isSubmittingAssignment, setIsSubmittingAssignment] = useState(false);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [assignmentSubmissionHistory, setAssignmentSubmissionHistory] = useState<any[]>([]);
+  const [gradeFilter, setGradeFilter] = useState<"all" | "quiz" | "exam" | "assignment">("all");
+  const [expandedGradeId, setExpandedGradeId] = useState<string | null>(null);
+
+  // Deep-link: id of item to highlight after navigating to its tab
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const deepLinkHandled = React.useRef(false);
+
+  // Onboarding tour
+  const [showTour, setShowTour] = useState<boolean>(() => {
+    try { return !localStorage.getItem("tour_done_student"); } catch { return false; }
+  });
+
+  // Study streak
+  const [streak, setStreak] = useState<number>(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("study_streak") || "{}");
+      const today = new Date().toDateString();
+      if (s.lastDate === today) return s.count ?? 1;
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      if (s.lastDate === yesterday) return s.count ?? 1;
+      return 0;
+    } catch { return 0; }
+  });
+
+  // Proctoring violation counter for active quiz
+  const [violations, setViolations] = useState(0);
+  const [showViolationWarning, setShowViolationWarning] = useState(false);
+  const violationsRef = useRef(0);
+
+  // Offline indicator
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  const fetchAllLiveSessions = async () => {
+    try {
+      const res = await fetch("/api/lectures/active-all", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setAllLiveSessions(await res.json());
+    } catch {}
+  };
+
+  const joinLiveSession = async (courseId: string) => {
+    try {
+      const res = await fetch(`/api/lectures/active/${courseId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        if (!data) return;
+        setActiveLiveSession(data);
+        setJoinedCourseId(courseId);
+        if (data.chats) setLiveChats(data.chats);
+        else setLiveChats([]);
+        if (data.id) {
+          fetch(`/api/lectures/${data.id}/join`, { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.error("Error joining live session:", e);
+    }
+  };
+
+  const shareWhatsApp = (type: string, id: string, title: string, detail?: string) => {
+    const url = `${window.location.origin}/${type}/${id}`;
+    const text = detail
+      ? `${title}\n${detail}\n\nView on Mmuta: ${url}`
+      : `${title}\n\nView on Mmuta: ${url}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+  };
+
+  const fetchActiveLiveSession = async () => {
+    if (!joinedCourseId) { fetchAllLiveSessions(); return; }
+    try {
+      const res = await fetch(`/api/lectures/active/${joinedCourseId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (!data) { setActiveLiveSession(null); setJoinedCourseId(null); setIsSpeakingAllowed(false); fetchAllLiveSessions(); }
+        else {
+          setActiveLiveSession(data);
+          if (data.chats) setLiveChats(data.chats);
+          const wasAllowed = isSpeakingAllowed;
+          const nowAllowed = !!data.myAllowedToSpeak;
+          setIsSpeakingAllowed(nowAllowed);
+          // Mic state is driven reactively by isSpeakingAllowed → LiveAudioRoom isMicAllowed prop
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching live lecture session:", e);
+    }
+  };
+
+  const handleToggleHandRaise = async () => {
+    if (!activeLiveSession) return;
+    const res = await fetch(`/api/lectures/${activeLiveSession.id}/hand-raise`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const d = await res.json();
+      setHandRaised(d.raised);
+    }
+  };
+
+  const handlePollRespond = async (pollId: string, answer: string) => {
+    if (!activeLiveSession) return;
+    setMyPollAnswer(answer);
+    await fetch(`/api/lectures/${activeLiveSession.id}/poll/${pollId}/respond`, {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ answer }),
+    });
+  };
+
+  const fetchExams = async () => {
+    try {
+      const res = await fetch("/api/exams", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setExams(await res.json());
+    } catch (e) { console.error("Error fetching exams:", e); }
+  };
+
+  const fetchAssignments = async () => {
+    try {
+      const res = await fetch("/api/assignments", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setAssignments(await res.json());
+    } catch (e) { console.error("Error fetching assignments:", e); }
+  };
+
+  const fetchMyAssignmentSubmission = async (assignmentId: string) => {
+    try {
+      const res = await fetch(`/api/assignments/${assignmentId}/my-submission`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setMyAssignmentSubmission(await res.json());
+    } catch (e) { console.error("Error fetching assignment submission:", e); }
+  };
+
+  const handleAssignmentSubmit = async () => {
+    if (!assignmentAnswers.trim() && !assignmentFileData) { setAssignmentError("Please write your answers or attach a file before submitting."); return; }
+    if (!activeAssignment) return;
+    setIsSubmittingAssignment(true);
+    setAssignmentError(null);
+    try {
+      const body: Record<string, string> = { answersText: assignmentAnswers };
+      if (assignmentFile && assignmentFileData) {
+        body.attachmentName = assignmentFile.name;
+        body.attachmentData = assignmentFileData;
+      }
+      const res = await fetch(`/api/assignments/${activeAssignment.id}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setMyAssignmentSubmission(d);
+        setAssignmentAnswers("");
+        setAssignmentFile(null);
+        setAssignmentFileData(null);
+      } else {
+        setAssignmentError(d.error || "Submission failed");
+      }
+    } catch (e: any) {
+      setAssignmentError(e.message);
+    } finally {
+      setIsSubmittingAssignment(false);
+    }
+  };
+
+  const fetchAssignmentSubmissionHistory = async () => {
+    try {
+      const res = await fetch("/api/student/assignment-submissions", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setAssignmentSubmissionHistory(await res.json());
+    } catch (e) { console.error("Error fetching assignment history:", e); }
+  };
+
+  const fetchMySubmission = async (examId: string) => {
+    try {
+      const res = await fetch(`/api/exams/${examId}/my-submission`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setMySubmission(await res.json());
+    } catch (e) { console.error("Error fetching my submission:", e); }
+  };
+
+  const handleExamSubmit = async () => {
+    if (!examAnswers.trim()) { setExamError("Please write your answers before submitting."); return; }
+    if (!activeExam) return;
+    setIsSubmittingExam(true);
+    setExamError(null);
+    try {
+      const res = await fetch(`/api/exams/${activeExam.id}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ answersText: examAnswers }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setMySubmission(d);
+        setExamAnswers("");
+      } else {
+        setExamError(d.error || "Submission failed");
+      }
+    } catch (e: any) {
+      setExamError(e.message);
+    } finally {
+      setIsSubmittingExam(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "exams") fetchExams();
+    if (activeTab === "assignments") fetchAssignments();
+    if (activeTab === "history") { fetchAttempts(); fetchExamSubmissions(); fetchAssignmentSubmissionHistory(); }
+  }, [activeTab]);
+
+  useEffect(() => {
+    let interval: any;
+    if (activeTab === "live-classroom") {
+      fetchActiveLiveSession();
+      interval = setInterval(fetchActiveLiveSession, 4000);
+    } else {
+      setActiveLiveSession(null);
+      setJoinedCourseId(null);
+      setAllLiveSessions([]);
+      setLiveChats([]);
+      setIsSpeakingAllowed(false);
+    }
+    return () => clearInterval(interval);
+  }, [activeTab, joinedCourseId]);
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [liveChats]);
+
+  const handleSendChatMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatMessage.trim() || !activeLiveSession) return;
+    const msg = chatMessage.trim();
+    setChatMessage("");
+    setIsSendingChat(true);
+    try {
+      const res = await fetch(`/api/lectures/${activeLiveSession.id}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: msg }),
+      });
+      if (res.ok) {
+        const chat = await res.json();
+        setLiveChats((prev) => [...prev, chat]);
+      }
+    } catch (err) {
+      console.error("Error sending message:", err);
+    } finally {
+      setIsSendingChat(false);
+    }
+  };
+
+  const handlePromoteYear = async (newYear: string) => {
+    try {
+      const res = await fetch("/api/student/promote-year", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ newYear }),
+      });
+      if (res.ok) setCurrentYear(newYear);
+    } catch (err) {
+      console.error("Error updating year:", err);
+    }
+  };
+
+  const handleChangeDepartment = async (deptName: string) => {
+    const prev = currentDepartment;
+    setCurrentDepartment(deptName);
+    try {
+      const res = await fetch("/api/student/department", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ department: deptName }),
+      });
+      if (res.ok) { fetchCourses(); fetchExams(); fetchAssignments(); }
+      else setCurrentDepartment(prev);
+    } catch { setCurrentDepartment(prev); }
+  };
+
+  const handleToggleAdditionalDept = async (deptName: string) => {
+    const next = additionalDepts.includes(deptName)
+      ? additionalDepts.filter(d => d !== deptName)
+      : [...additionalDepts, deptName];
+    setAdditionalDepts(next);
+    try {
+      const res = await fetch("/api/student/additional-departments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ departments: next }),
+      });
+      if (res.ok) { fetchCourses(); fetchExams(); fetchAssignments(); }
+      else setAdditionalDepts(additionalDepts); // rollback
+    } catch { setAdditionalDepts(additionalDepts); }
+  };
+
+  const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
+  const [activeAttempt, setActiveAttempt] = useState<StudentAttempt | null>(null);
+  const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [skippedCount, setSkippedCount] = useState(0);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const periodicSaveRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
+  const [syncStatus, setSyncStatus] = useState<"synced" | "syncing" | "error">("synced");
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [examResult, setExamResult] = useState<{
+    score: number;
+    timedOut: boolean;
+    answers: Record<string, string>;
+    questions: Question[];
+    title: string;
+    correctAnswers?: Record<string, string>;
+  } | null>(null);
+
+  const [showExamExpiredModal, setShowExamExpiredModal] = useState(false);
+  const [examExpiredCountdown, setExamExpiredCountdown] = useState(5);
+  const [pendingExamResult, setPendingExamResult] = useState<{
+    score: number;
+    timedOut: boolean;
+    answers: Record<string, string>;
+    questions: Question[];
+    title: string;
+  } | null>(null);
+  const [isBackgroundSubmitting, setIsBackgroundSubmitting] = useState(false);
+
+  const [allNotes, setAllNotes] = useState<(LectureNote & { course?: { code: string; title: string } })[]>([]);
+  const [notesFilterCourseId, setNotesFilterCourseId] = useState<string>("");
+  const [bookmarkedNotes, setBookmarkedNotes] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("bookmarked_notes") || "[]")); } catch { return new Set(); }
+  });
+  const [showOnlyBookmarked, setShowOnlyBookmarked] = useState(false);
+
+  // Deep-link: switch to the right tab on first mount; resolve item once data loads
+  useEffect(() => {
+    if (!deepLink || deepLinkHandled.current) return;
+    const tabMap: Record<string, typeof activeTab> = {
+      quiz: "quizzes", note: "notes", exam: "exams",
+      assignment: "assignments", live: "live-classroom",
+    };
+    const tab = tabMap[deepLink.type];
+    if (tab) setActiveTab(tab);
+    setHighlightId(deepLink.id);
+    setTimeout(() => setHighlightId(null), 3000);
+  }, [deepLink]);
+
+  // Resolve deep-link item once the relevant data array loads
+  useEffect(() => {
+    if (!deepLink || deepLinkHandled.current) return;
+    if (deepLink.type === "note" && allNotes.length > 0) {
+      const note = allNotes.find(n => n.id === deepLink.id);
+      if (note) { setSelectedNote(note); deepLinkHandled.current = true; }
+    }
+    if (deepLink.type === "exam" && exams.length > 0) {
+      const exam = exams.find((e: any) => e.id === deepLink.id);
+      if (exam) { setActiveExam(exam); fetchMySubmission(exam.id); deepLinkHandled.current = true; }
+    }
+    if (deepLink.type === "assignment" && assignments.length > 0) {
+      const a = assignments.find((a: any) => a.id === deepLink.id);
+      if (a) { setActiveAssignment(a); fetchMyAssignmentSubmission(a.id); deepLinkHandled.current = true; }
+    }
+    if (deepLink.type === "live" && allLiveSessions.length > 0) {
+      const sess = allLiveSessions.find((s: any) => s.id === deepLink.id);
+      if (sess) { joinLiveSession(sess.courseId); deepLinkHandled.current = true; }
+    }
+    if (deepLink.type === "quiz" && quizzes.length > 0) {
+      deepLinkHandled.current = true;
+    }
+  }, [deepLink, allNotes, exams, assignments, allLiveSessions, quizzes]);
+
+  useEffect(() => {
+    fetchCourses();
+    fetchAttempts();
+    fetchAllNotes();
+    fetchAnnouncements();
+    subscribeToPush();
+    fetch("/api/departments").then(r => r.ok ? r.json() : []).then(setAvailableDepartments).catch(() => {});
+    fetch("/api/student/profile", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(p => { if (p) { setCurrentDepartment(p.department); setAdditionalDepts(p.additionalDepartments || []); } })
+      .catch(() => {});
+
+    // Update study streak on login
+    try {
+      const raw = JSON.parse(localStorage.getItem("study_streak") || "{}");
+      const today = new Date().toDateString();
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      let newCount = 1;
+      if (raw.lastDate === today) { newCount = raw.count ?? 1; }
+      else if (raw.lastDate === yesterday) { newCount = (raw.count ?? 0) + 1; }
+      localStorage.setItem("study_streak", JSON.stringify({ lastDate: today, count: newCount }));
+      setStreak(newCount);
+    } catch {}
+
+    // Online/offline listeners
+    const goOffline = () => setIsOffline(true);
+    const goOnline  = () => setIsOffline(false);
+    window.addEventListener("offline", goOffline);
+    window.addEventListener("online",  goOnline);
+    return () => { window.removeEventListener("offline", goOffline); window.removeEventListener("online", goOnline); };
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setPeriodTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const fetchAllNotes = async () => {
+    try {
+      const res = await fetch("/api/notes", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setAllNotes(data);
+      }
+    } catch (err) {
+      console.error("Error fetching all notes for materials section:", err);
+    }
+  };
+
+  const toggleBookmark = (noteId: string) => {
+    setBookmarkedNotes(prev => {
+      const next = new Set(prev);
+      if (next.has(noteId)) next.delete(noteId); else next.add(noteId);
+      try { localStorage.setItem("bookmarked_notes", JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+  };
+
+  const fetchCourses = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/courses", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setCourses(data);
+        if (data.length > 0) fetchCourseDetail(data[0].id);
+      }
+    } catch (err) {
+      console.error("Error fetching courses:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCourseDetail = async (courseId: string) => {
+    try {
+      const res = await fetch(`/api/courses/${courseId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedCourse(data);
+        if (data.quizzes) setQuizzes(data.quizzes);
+      }
+    } catch (err) {
+      console.error("Error fetching course detail:", err);
+    }
+  };
+
+  const fetchAttempts = async () => {
+    try {
+      const res = await fetch("/api/student/attempts", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data: any[] = await res.json();
+        const attemptMap: Record<string, StudentAttempt> = {};
+        data.forEach((a) => { attemptMap[a.quizId] = a; });
+        setAttempts(attemptMap);
+        setAttemptsList(data);
+      }
+    } catch (err) {
+      console.error("Error fetching student attempts:", err);
+    }
+  };
+
+  const fetchExamSubmissions = async () => {
+    try {
+      const res = await fetch("/api/student/exam-submissions", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setExamSubmissions(await res.json());
+    } catch (err) {
+      console.error("Error fetching exam submissions:", err);
+    }
+  };
+
+  const fetchAnnouncements = async () => {
+    try {
+      const res = await fetch("/api/announcements", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setAnnouncements(await res.json());
+    } catch {}
+  };
+
+  const fetchLeaderboard = async (quizId: string, title: string) => {
+    setLeaderboard(null);
+    setLeaderboardQuizTitle(title);
+    try {
+      const res = await fetch(`/api/quizzes/${quizId}/leaderboard`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setLeaderboard(await res.json());
+    } catch {}
+  };
+
+  const subscribeToPush = async () => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    try {
+      const keyRes = await fetch("/api/vapid-public-key");
+      const { key } = await keyRes.json();
+      if (!key) return;
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") return;
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(key),
+      });
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(sub),
+      });
+      setPushGranted(true);
+    } catch {}
+  };
+
+  function urlBase64ToUint8Array(base64String: string) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  }
+
+  const handleStartExam = async (quiz: Quiz) => {
+    if (attempts[quiz.id]?.isCompleted) {
+      alert("You have already completed this exam.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/quiz/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ quizId: quiz.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to start quiz session");
+
+      const quizRes = await fetch(`/api/quizzes/${quiz.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const quizData = await quizRes.json();
+      if (!quizRes.ok) throw new Error(quizData.error || "Failed to load quiz questions");
+
+      setActiveQuiz(quizData);
+      setQuizQuestions(quizData.questions || []);
+      setActiveAttempt(data.attempt);
+      setSubmitError(null);
+      setSkippedCount(0);
+      setShowSubmitConfirm(false);
+      setAutoSaveStatus("idle");
+      try {
+        const draft = localStorage.getItem(`exam_draft_${data.attempt.id}`);
+        setSelectedAnswers(draft ? JSON.parse(draft) : {});
+      } catch {
+        setSelectedAnswers({});
+      }
+
+      const initialSeconds = quiz.durationMinutes * 60;
+      setRemainingSeconds(initialSeconds);
+      startTimerSystem(data.attempt.id, initialSeconds);
+      startProctoring(data.attempt.id, () => handleAutoSubmitBackground(data.attempt.id));
+
+      // Periodic autosave every 10 s — captures current answers even without input changes
+      if (periodicSaveRef.current) clearInterval(periodicSaveRef.current);
+      periodicSaveRef.current = setInterval(() => {
+        setSelectedAnswers((prev) => {
+          if (Object.keys(prev).length > 0) {
+            try { localStorage.setItem(`exam_draft_${data.attempt.id}`, JSON.stringify(prev)); } catch { /* storage unavailable */ }
+          }
+          return prev;
+        });
+      }, 10_000);
+    } catch (err: any) {
+      setSubmitError(err.message);
+    }
+  };
+
+  const startTimerSystem = (attemptId: string, initialSeconds: number) => {
+    stopTimerSystem();
+    let currentSecs = initialSeconds;
+
+    countdownIntervalRef.current = setInterval(() => {
+      setRemainingSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownIntervalRef.current!);
+          triggerQuizExpired(attemptId);
+          return 0;
+        }
+        currentSecs = prev - 1;
+        return prev - 1;
+      });
+    }, 1000);
+
+    const syncTime = async () => {
+      setSyncStatus("syncing");
+      try {
+        const res = await fetch(`/api/quiz/remaining-time/${attemptId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const serverSeconds = data.remainingSeconds;
+          if (serverSeconds <= 0 || data.isCompleted) {
+            stopTimerSystem();
+            triggerQuizExpired(attemptId);
+            return;
+          }
+          const discrepancy = Math.abs(currentSecs - serverSeconds);
+          if (discrepancy > 5) {
+            console.warn(`Clock discrepancy detected: local=${currentSecs}s, server=${serverSeconds}s. Resynced.`);
+          }
+          setRemainingSeconds(serverSeconds);
+          setSyncStatus("synced");
+        } else {
+          setSyncStatus("error");
+        }
+      } catch (err) {
+        setSyncStatus("error");
+      }
+    };
+
+    setTimeout(syncTime, 2000);
+    syncIntervalRef.current = setInterval(syncTime, 10000);
+  };
+
+  const stopTimerSystem = () => {
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+    if (periodicSaveRef.current) clearInterval(periodicSaveRef.current);
+  };
+
+  const proctoringCleanupRef = useRef<(() => void) | null>(null);
+
+  const startProctoring = (attemptId: string, autoSubmitFn: () => void) => {
+    violationsRef.current = 0;
+    setViolations(0);
+
+    const handleViolation = () => {
+      violationsRef.current += 1;
+      setViolations(violationsRef.current);
+      setShowViolationWarning(true);
+      if (violationsRef.current >= 3) {
+        document.removeEventListener("visibilitychange", handleVis);
+        window.removeEventListener("blur", handleBlur);
+        autoSubmitFn();
+      }
+    };
+    const handleVis = () => { if (document.visibilityState === "hidden") handleViolation(); };
+    const handleBlur = () => handleViolation();
+
+    document.addEventListener("visibilitychange", handleVis);
+    window.addEventListener("blur", handleBlur);
+
+    proctoringCleanupRef.current = () => {
+      document.removeEventListener("visibilitychange", handleVis);
+      window.removeEventListener("blur", handleBlur);
+    };
+  };
+
+  const stopProctoring = () => {
+    proctoringCleanupRef.current?.();
+    proctoringCleanupRef.current = null;
+    violationsRef.current = 0;
+    setViolations(0);
+    setShowViolationWarning(false);
+  };
+
+  const triggerQuizExpired = (attemptId: string) => {
+    stopTimerSystem();
+    setShowExamExpiredModal(true);
+    setExamExpiredCountdown(5);
+    setPendingExamResult(null);
+    setIsBackgroundSubmitting(true);
+    handleAutoSubmitBackground(attemptId);
+  };
+
+  const handleAutoSubmitBackground = async (attemptId: string) => {
+    let currentAnswers: Record<string, string> = {};
+    setSelectedAnswers((prev) => { currentAnswers = prev; return prev; });
+    try {
+      const draft = localStorage.getItem(`exam_draft_${attemptId}`);
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        currentAnswers = { ...parsed, ...currentAnswers };
+        localStorage.removeItem(`exam_draft_${attemptId}`);
+      }
+    } catch { /* ignore */ }
+    try {
+      const res = await fetch("/api/quiz/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ attemptId, answers: currentAnswers, isAutoSubmit: true }),
+      });
+      const data = await res.json();
+      setPendingExamResult({
+        score: data.attempt?.score ?? data.score ?? 0,
+        timedOut: true,
+        answers: currentAnswers,
+        questions: quizQuestions,
+        title: activeQuiz?.title || "Academic Assessment",
+      });
+    } catch (err) {
+      console.error("Auto submit failed:", err);
+      setPendingExamResult({
+        score: 0,
+        timedOut: true,
+        answers: currentAnswers,
+        questions: quizQuestions,
+        title: activeQuiz?.title || "Academic Assessment",
+      });
+    } finally {
+      setIsBackgroundSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showExamExpiredModal) return;
+    const interval = setInterval(() => {
+      setExamExpiredCountdown((prev) => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showExamExpiredModal]);
+
+  useEffect(() => {
+    if (showExamExpiredModal && examExpiredCountdown === 0 && !isBackgroundSubmitting && pendingExamResult) {
+      handleProceedToResults();
+    }
+  }, [showExamExpiredModal, examExpiredCountdown, isBackgroundSubmitting, pendingExamResult]);
+
+  const handleProceedToResults = () => {
+    if (!pendingExamResult) return;
+    setExamResult(pendingExamResult);
+    setShowExamExpiredModal(false);
+    setPendingExamResult(null);
+    stopProctoring();
+    setActiveQuiz(null);
+    setActiveAttempt(null);
+    fetchAttempts();
+  };
+
+  const handleManualSubmit = async (forceSkipped = false) => {
+    if (!activeAttempt) return;
+    if (!forceSkipped && !showSubmitConfirm) {
+      setShowSubmitConfirm(true);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+    setSkippedCount(0);
+    setShowSubmitConfirm(false);
+    try {
+      const body: any = { attemptId: activeAttempt.id, answers: selectedAnswers, violations: violationsRef.current };
+      if (forceSkipped) body.confirmSkipped = true;
+
+      const res = await fetch("/api/quiz/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      if (res.status === 400 && data.error === "skipped_questions") {
+        setSkippedCount(data.skippedCount || 0);
+        setSubmitError(`${data.skippedCount} question(s) unanswered. Answer them or submit anyway.`);
+        return;
+      }
+
+      if (res.status === 408) {
+        setExamResult({ score: data.attempt?.score || 0, timedOut: true, answers: selectedAnswers, questions: quizQuestions, title: activeQuiz?.title || "Academic Assessment" });
+      } else if (!res.ok) {
+        setSubmitError(data.error || "Submission failed. Please try again.");
+        return;
+      } else {
+        setExamResult({ score: data.score, timedOut: false, answers: selectedAnswers, questions: quizQuestions, title: activeQuiz?.title || "Academic Assessment", correctAnswers: data.correctAnswers });
+      }
+
+      stopTimerSystem();
+      stopProctoring();
+      try { localStorage.removeItem(`exam_draft_${activeAttempt.id}`); } catch { /* ignore */ }
+      setActiveQuiz(null);
+      setActiveAttempt(null);
+      fetchAttempts();
+    } catch (err: any) {
+      setSubmitError(err.message || "Network error. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSelectOption = (questionId: string, option: string) => {
+    setSelectedAnswers((prev) => {
+      const next = { ...prev, [questionId]: option };
+      scheduleAutoSave(next);
+      return next;
+    });
+    if (submitError) { setSubmitError(null); setSkippedCount(0); }
+    if (showSubmitConfirm) setShowSubmitConfirm(false);
+  };
+
+  const scheduleAutoSave = (answers: Record<string, string>) => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    setAutoSaveStatus("saving");
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (activeAttempt) {
+        try {
+          localStorage.setItem(`exam_draft_${activeAttempt.id}`, JSON.stringify(answers));
+        } catch {
+          // storage unavailable — silently ignore
+        }
+      }
+      setAutoSaveStatus("saved");
+      autoSaveTimerRef.current = setTimeout(() => setAutoSaveStatus("idle"), 2500);
+    }, 600);
+  };
+
+  const formatTime = (secs: number) => {
+    const mins = Math.floor(secs / 60);
+    const remaining = secs % 60;
+    return `${mins.toString().padStart(2, "0")}:${remaining.toString().padStart(2, "0")}`;
+  };
+
+  /* ─── EXAM RESULT SCREEN ─── */
+  if (examResult) {
+    return (
+      <div className="min-h-screen relative bg-gradient-to-br from-emerald-50 via-white to-green-50/60 dark:from-[#010e07] dark:via-[#011208] dark:to-[#021a0d] font-sans">
+        <div className="fixed inset-0 pointer-events-none dark:opacity-0"
+          style={{background: "radial-gradient(ellipse 80% 65% at 50% 38%, rgba(167,243,208,0.30) 0%, transparent 70%)"}} />
+        <div className="fixed inset-0 pointer-events-none opacity-0 dark:opacity-100"
+          style={{background: "radial-gradient(ellipse 80% 65% at 50% 38%, rgba(4,120,87,0.16) 0%, transparent 70%)"}} />
+        <div className="fixed inset-0 pointer-events-none opacity-[0.022] dark:opacity-[0.04]"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+            backgroundSize: "256px 256px",
+          }} />
+        <div className="relative z-10 flex items-center justify-center py-12 px-4 min-h-screen">
+        <motion.div
+          id="summary-screen"
+          initial={{ opacity: 0, y: 16, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="max-w-2xl w-full"
+        >
+          <div className="glass-card rounded-3xl overflow-hidden">
+            <div
+              className="relative overflow-hidden px-8 py-10 text-center"
+              style={{ background: "linear-gradient(135deg, #064e3b, #047857)" }}
+            >
+              <div className="absolute inset-0 opacity-25" style={{ backgroundImage: "radial-gradient(circle at 30% 50%, rgba(255,255,255,0.22) 0%, transparent 55%)" }} />
+              <div className="relative">
+                <div className="inline-flex p-3 bg-white/15 rounded-2xl mb-4 border border-white/20">
+                  {examResult.timedOut ? (
+                    <AlertTriangle className="h-8 w-8 text-amber-300" />
+                  ) : (
+                    <CheckCircle className="h-8 w-8 text-emerald-300" />
+                  )}
+                </div>
+                <h2 className="text-xl font-bold tracking-tight font-display text-white">{examResult.title}</h2>
+                <p className="text-white/55 text-[12px] mt-1 font-mono tracking-widest uppercase">University Secure Assessment Result</p>
+              </div>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div className="flex flex-col items-center justify-center py-7 bg-gradient-to-br from-emerald-50/80 to-green-50/50 dark:from-emerald-950/20 dark:to-green-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-2xl">
+                <span className="text-[12px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Your Secure Grade</span>
+                <span className="text-6xl font-black text-slate-900 dark:text-white tracking-tight mt-1 font-display tabular-nums">
+                  {examResult.score.toFixed(1)}%
+                </span>
+                <span className="text-[12px] font-semibold text-slate-500 dark:text-slate-400 mt-3">
+                  {examResult.score >= 50 ? "Academic Pass" : "Re-assessment required"}
+                </span>
+              </div>
+
+              {examResult.timedOut && (
+                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 text-amber-800 dark:text-amber-400 text-[12.5px] rounded-xl p-4 flex gap-3">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block mb-0.5">Auto-Submitted / Timed Out</span>
+                    This quiz exceeded the allocated duration limit. The examination session was securely finalized and locked by the server.
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <h3 className="text-[12px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Question & Response Audit</h3>
+                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                  {examResult.questions.map((q, idx) => {
+                    const studentAns = examResult.answers[q.id];
+                    const correctAns = examResult.correctAnswers?.[q.id];
+                    const isCorrect = correctAns ? studentAns === correctAns : undefined;
+                    const options: string[] = JSON.parse(q.optionsJson);
+                    return (
+                      <div key={q.id} className={`p-4 border rounded-xl space-y-2 ${
+                        isCorrect === true ? "bg-emerald-50/80 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/30"
+                        : isCorrect === false ? "bg-red-50/80 dark:bg-red-950/20 border-red-200 dark:border-red-800/30"
+                        : "bg-slate-50 dark:bg-white/[0.04] border-slate-100 dark:border-white/[0.06]"
+                      }`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-[12.5px] font-semibold text-slate-800 dark:text-slate-200">
+                            {idx + 1}. {q.text}
+                          </p>
+                          {isCorrect !== undefined && (
+                            <span className={`flex-shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${isCorrect ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400"}`}>
+                              {isCorrect ? "✓ Correct" : "✗ Wrong"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="space-y-1 pl-2">
+                          {options.map((opt) => {
+                            const isStudentPick = studentAns === opt;
+                            const isAnswer = correctAns === opt;
+                            return (
+                              <div key={opt}
+                                className={`text-[11.5px] px-3 py-1.5 rounded-lg flex items-center justify-between gap-2 ${
+                                  isAnswer ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-900 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50 font-semibold"
+                                  : isStudentPick && !isAnswer ? "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800/30 line-through opacity-75"
+                                  : "text-slate-500 dark:text-slate-500"
+                                }`}
+                              >
+                                <span>{opt}</span>
+                                <span className="flex-shrink-0 text-[10px] font-bold uppercase">
+                                  {isAnswer && "✓ Answer"}
+                                  {isStudentPick && !isAnswer && "Your pick"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                id="return-dashboard-btn"
+                onClick={() => setExamResult(null)}
+                className="btn-gradient"
+              >
+                Return to Student Portal
+              </button>
+            </div>
+          </div>
+        </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ─── ACTIVE EXAM ENGINE ─── */
+  if (activeQuiz && activeAttempt) {
+    const isUnderOneMinute = remainingSeconds <= 60;
+
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+        {/* Proctoring violation warning */}
+        <AnimatePresence>
+          {showViolationWarning && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+              onClick={() => setShowViolationWarning(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: -20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9 }}
+                transition={{ type: "spring", stiffness: 360, damping: 28 }}
+                className="bg-red-950 border border-red-700/60 rounded-2xl p-6 max-w-sm w-full text-center"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="text-4xl mb-3">⚠️</div>
+                <h2 className="text-[16px] font-bold text-white mb-1">Tab-switch Detected</h2>
+                <p className="text-[12.5px] text-red-300 mb-1">
+                  This is warning <strong className="text-white">{violations} of 3</strong>.
+                </p>
+                <p className="text-[12px] text-red-400 mb-4">
+                  {violations >= 3 ? "Your quiz has been auto-submitted." : "A third violation will automatically submit your quiz."}
+                </p>
+                {violations < 3 && (
+                  <button onClick={() => setShowViolationWarning(false)}
+                    className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white text-[13px] font-bold rounded-xl transition cursor-pointer">
+                    Return to Quiz
+                  </button>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-xl border-b border-slate-800/80 px-6 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-[12px] font-mono bg-emerald-950/60 text-emerald-400 border border-emerald-900/40 px-2.5 py-1 rounded-lg uppercase tracking-widest font-bold">
+              {selectedCourse?.code || "EXAM"}
+            </span>
+            <h1 className="text-sm font-bold tracking-tight font-display text-white hidden sm:block">{activeQuiz.title}</h1>
+          </div>
+
+          <div className={`flex items-center gap-3 px-4 py-2 rounded-xl border transition-all ${
+            isUnderOneMinute ? "bg-red-950/50 border-red-800/50" : "bg-slate-800/80 border-slate-700/50"
+          }`}>
+            <div className="flex items-center gap-2">
+              <Clock className={`h-4 w-4 ${isUnderOneMinute ? "text-red-400 animate-pulse" : "text-slate-400"}`} />
+              <span className={`font-mono text-base font-bold tracking-wider tabular-nums ${isUnderOneMinute ? "text-red-400" : "text-white"}`}>
+                {formatTime(remainingSeconds)}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 border-l border-slate-700/50 pl-3 text-[11px] font-mono text-slate-500 uppercase tracking-wider">
+              <span className={`h-1.5 w-1.5 rounded-full transition-colors ${
+                syncStatus === "synced" ? "bg-emerald-500" : syncStatus === "syncing" ? "bg-amber-500 animate-ping" : "bg-red-500"
+              }`} />
+              {syncStatus === "syncing" ? "Sync" : "Secure"}
+            </div>
+            {autoSaveStatus !== "idle" && (
+              <div className={`flex items-center gap-1.5 border-l border-slate-700/50 pl-3 text-[11px] font-mono uppercase tracking-wider transition-all ${
+                autoSaveStatus === "saving" ? "text-amber-400" : "text-emerald-400"
+              }`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${autoSaveStatus === "saving" ? "bg-amber-400 animate-pulse" : "bg-emerald-400"}`} />
+                {autoSaveStatus === "saving" ? "Saving…" : "Saved"}
+              </div>
+            )}
+            {violations > 0 && (
+              <div className="flex items-center gap-1.5 border-l border-slate-700/50 pl-3 text-[11px] font-mono text-red-400 uppercase tracking-wider">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                {violations}/3 warn
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Offline banner — shown during active exam when network drops */}
+        <AnimatePresence>
+          {isOffline && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="overflow-hidden"
+            >
+              <div className="bg-amber-950/80 border-b border-amber-800/60 px-6 py-2.5 flex items-center gap-2.5 text-amber-300 text-[12px] font-semibold">
+                <WifiOff className="h-4 w-4 flex-shrink-0" />
+                <span>No network — your answers are saved locally and will be submitted when connection restores.</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="flex-1 overflow-y-auto max-w-3xl w-full mx-auto px-4 sm:px-6 py-8">
+          {submitError && (
+            <div className="mb-6 bg-red-950/40 border border-red-800/50 text-red-300 rounded-xl p-4 flex gap-3 text-[12.5px]">
+              <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>{submitError}</div>
+            </div>
+          )}
+
+          <SecureContent studentName={user.fullName} regNumber={user.regNumber} mode="light" className="space-y-4">
+            {quizQuestions.map((q, qIdx) => {
+              const options: string[] = JSON.parse(q.optionsJson);
+              const isAnswered = selectedAnswers[q.id] !== undefined;
+              return (
+                <div
+                  key={q.id}
+                  className={`p-5 rounded-2xl border transition-all duration-200 ${
+                    isAnswered ? "bg-slate-900 border-slate-700" : "bg-slate-900/50 border-slate-800"
+                  }`}
+                >
+                  <div className="flex items-start gap-4">
+                    <span className="flex items-center justify-center h-7 w-7 rounded-xl bg-slate-800 text-[11px] font-mono font-bold text-slate-400 shrink-0 mt-0.5 border border-slate-700 tabular-nums">
+                      {qIdx + 1}
+                    </span>
+                    <div className="space-y-3.5 w-full">
+                      <h3 className="text-[13.5px] font-semibold text-slate-100 leading-relaxed"><MathText text={q.text} /></h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        {options.map((opt) => {
+                          const isSelected = selectedAnswers[q.id] === opt;
+                          return (
+                            <button
+                              key={opt}
+                              type="button"
+                              onClick={() => handleSelectOption(q.id, opt)}
+                              className={`flex items-center gap-3 p-3.5 rounded-xl border text-left text-[12.5px] font-medium transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-emerald-900/40 border-emerald-600/60 text-white"
+                                  : "bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-900 hover:border-slate-600 hover:text-slate-200"
+                              }`}
+                            >
+                              <span className={`flex-shrink-0 h-4 w-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                                isSelected ? "border-emerald-400 bg-emerald-600" : "border-slate-600"
+                              }`}>
+                                {isSelected && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                              </span>
+                              <span className="flex-1"><MathText text={opt} /></span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </SecureContent>
+        </div>
+
+        <div className="bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/80 px-6 py-4 space-y-3">
+          {showSubmitConfirm && !isSubmitting && (
+            <div className="flex items-center justify-between gap-3 bg-amber-950/40 border border-amber-700/40 rounded-xl px-4 py-3">
+              <p className="text-[12px] text-amber-300 font-semibold">Finalize and lock your answers? This cannot be undone.</p>
+              <div className="flex gap-2 flex-shrink-0">
+                <button
+                  onClick={() => setShowSubmitConfirm(false)}
+                  className="px-3 py-1.5 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleManualSubmit(false)}
+                  disabled={isSubmitting}
+                  className="px-3 py-1.5 text-[11px] font-semibold bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition cursor-pointer"
+                >
+                  Yes, Submit
+                </button>
+              </div>
+            </div>
+          )}
+          {submitError && skippedCount > 0 && (
+            <div className="flex items-center justify-between gap-3 bg-red-950/40 border border-red-700/40 rounded-xl px-4 py-3">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 text-red-400 shrink-0" />
+                <p className="text-[12px] text-red-300 font-semibold">{submitError}</p>
+              </div>
+              <button
+                onClick={() => handleManualSubmit(true)}
+                className="px-3 py-1.5 text-[11px] font-semibold bg-red-800 hover:bg-red-700 text-white rounded-lg transition cursor-pointer flex-shrink-0"
+              >
+                Submit Anyway
+              </button>
+            </div>
+          )}
+          {submitError && skippedCount === 0 && (
+            <div className="flex items-center gap-2 bg-red-950/40 border border-red-700/40 rounded-xl px-4 py-3">
+              <ShieldAlert className="h-4 w-4 text-red-400 shrink-0" />
+              <p className="text-[12px] text-red-300 font-semibold">{submitError}</p>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] text-slate-500 font-mono uppercase tracking-wider">
+              <span className="text-slate-300 font-bold">{Object.keys(selectedAnswers).length}</span> / {quizQuestions.length} answered
+            </div>
+            <button
+              id="manual-submit-quiz-btn"
+              onClick={() => handleManualSubmit()}
+              disabled={isSubmitting}
+              className="btn-gradient"
+              style={{ width: "auto", paddingLeft: "24px", paddingRight: "24px" }}
+            >
+              {isSubmitting ? "Scoring..." : "Submit Exam"}
+            </button>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {showExamExpiredModal && (
+            <motion.div
+              id="exam-expired-modal"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+              style={{ background: "rgba(2,2,12,0.88)", backdropFilter: "blur(16px)" }}
+            >
+              <motion.div
+                initial={{ scale: 0.90, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.90, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 380, damping: 36 }}
+                className="max-w-sm w-full bg-slate-900 border border-slate-800/60 rounded-[24px] p-8 text-center space-y-5 text-white"
+              >
+                <div className="flex justify-center">
+                  <div className="w-14 h-14 rounded-full bg-amber-950/40 border border-amber-800/40 flex items-center justify-center">
+                    <Clock className="h-6 w-6 text-amber-400 animate-pulse" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-[17px] font-bold text-white font-display">Time's Up</h3>
+                  <p className="text-[12px] font-mono font-bold uppercase tracking-widest text-slate-500 mt-0.5">Mmuta Academic Integrity Gate</p>
+                </div>
+                <p className="text-[13px] text-slate-400 leading-relaxed">
+                  Your examination duration has ended. Answers are being securely locked and transmitted.
+                </p>
+
+                <div className="bg-slate-950/60 border border-slate-800/50 rounded-[14px] p-4 space-y-2.5">
+                  {isBackgroundSubmitting ? (
+                    <div className="flex items-center justify-center gap-2 text-[12px] text-amber-400 font-semibold">
+                      <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+                      Syncing with server...
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2 text-[12px] text-emerald-400 font-semibold">
+                      <CheckCircle className="h-4 w-4" />
+                      Answers saved!
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[12px] font-mono text-slate-500">
+                      <span>Auto-advancing</span>
+                      <span>{examExpiredCountdown}s</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: "100%" }}
+                        animate={{ width: "0%" }}
+                        transition={{ duration: 5, ease: "linear" }}
+                        className="h-full rounded-full bg-amber-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  id="exam-expired-proceed-btn"
+                  type="button"
+                  disabled={isBackgroundSubmitting || !pendingExamResult}
+                  onClick={handleProceedToResults}
+                  className="btn-gradient disabled:opacity-40"
+                >
+                  View Score Card
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  /* ─── MAIN DASHBOARD ─── */
+
+  // Per-course stats from already-loaded state — used for sidebar completion bars
+  const courseStatsByCode: Record<string, { attempted: number; avgPct: number | null }> = {};
+  const _addRow = (code: string, pct: number | null) => {
+    if (!code) return;
+    if (!courseStatsByCode[code]) courseStatsByCode[code] = { attempted: 0, avgPct: null };
+    const s = courseStatsByCode[code];
+    s.attempted += 1;
+    if (pct !== null) s.avgPct = s.avgPct === null ? pct : (s.avgPct * (s.attempted - 1) + pct) / s.attempted;
+  };
+  attemptsList.filter(a => a.isCompleted).forEach(a => _addRow(a.quiz?.course?.code || "", a.score ?? 0));
+  examSubmissions.forEach(s => {
+    const pct = s.totalMarks ? (s.score / s.totalMarks) * 100 : (s.score ?? null);
+    _addRow(s.exam?.course?.code || "", s.isGraded ? pct : null);
+  });
+  assignmentSubmissionHistory.forEach(s => {
+    const pct = s.totalMarks ? (s.score / s.totalMarks) * 100 : (s.score ?? null);
+    _addRow(s.assignment?.course?.code || "", s.isGraded ? pct : null);
+  });
+
+  return (
+    <div className="flex h-screen overflow-hidden apple-window-bg dark:bg-[#141416] font-sans relative">
+
+      {/* Onboarding tour — shown once to new users */}
+      {showTour && (
+        <OnboardingTour role="student" onDone={() => {
+          setShowTour(false);
+          try { localStorage.setItem("tour_done_student", "1"); } catch { /* noop */ }
+        }} />
+      )}
+
+      {/* Subtle radial bg gradients — barely visible, add depth */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div style={{ position: "absolute", width: 800, height: 800, top: -200, right: -150, background: "radial-gradient(ellipse at center, rgba(10,148,99,0.055) 0%, transparent 62%)" }} />
+        <div style={{ position: "absolute", width: 600, height: 600, bottom: -100, left: -100, background: "radial-gradient(ellipse at center, rgba(4,120,87,0.035) 0%, transparent 62%)" }} />
+      </div>
+
+      {/* ── LEFT SIDEBAR — desktop only ── */}
+      <aside className="hidden sm:flex sm:w-[232px] flex-shrink-0 flex-col h-full apple-sidebar relative z-10">
+
+        {/* Traffic lights */}
+        <div className="flex items-center gap-[6px] px-4 pt-5 pb-3 flex-shrink-0">
+          <span className="h-[13px] w-[13px] rounded-full bg-[#ff5f57] shadow-[0_0_0_0.5px_rgba(0,0,0,0.14)] flex-shrink-0" />
+          <span className="h-[13px] w-[13px] rounded-full bg-[#ffbd2e] shadow-[0_0_0_0.5px_rgba(0,0,0,0.14)] flex-shrink-0 hidden sm:inline-block" />
+          <span className="h-[13px] w-[13px] rounded-full bg-[#28c840] shadow-[0_0_0_0.5px_rgba(0,0,0,0.14)] flex-shrink-0 hidden sm:inline-block" />
+        </div>
+
+        {/* Logo */}
+        <div className="hidden sm:flex items-center justify-center px-4 pb-4 flex-shrink-0">
+          <img
+            src="/logo-dark.png"
+            alt="Mmuta"
+            className="h-[56px] w-auto"
+            style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.18)) brightness(0.96)" }}
+          />
+        </div>
+
+        {/* Avatar */}
+        <div className="px-3 pb-3 flex-shrink-0">
+          <button
+            onClick={() => setIsAvatarModalOpen(true)}
+            className="group w-full flex items-center gap-3 p-2.5 rounded-[12px] hover:bg-black/[0.05] dark:hover:bg-white/[0.06] transition cursor-pointer text-left"
+            title="Update profile photo"
+          >
+            <div className="relative flex-shrink-0">
+              <UserAvatar
+                userId={user.id}
+                role="student"
+                size={34}
+                initials={user.fullName}
+                refreshTrigger={avatarRefreshTrigger}
+                className="rounded-full ring-[1.5px] ring-black/10 dark:ring-white/15 shadow-sm"
+              />
+              <div className="absolute inset-0 bg-black/45 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                <Camera className="h-3 w-3 text-white" />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/90 leading-tight truncate">{user.fullName}</p>
+              <p className="text-[11px] text-[#6e6e73] dark:text-white/38 font-mono truncate mt-0.5">{user.regNumber}</p>
+            </div>
+          </button>
+        </div>
+
+        {/* Nav + courses (scrollable) */}
+        <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto min-h-0">
+
+          {/* Main nav tabs */}
+          {[
+            { id: "notes",          icon: FileText,      label: "Materials",    live: false },
+            { id: "quizzes",        icon: Award,         label: "Quizzes",      live: false },
+            { id: "exams",          icon: Upload,        label: "Exams",        live: false },
+            { id: "assignments",    icon: Pencil,        label: "Assignments",  live: false },
+            { id: "history",        icon: ClipboardList, label: "My Grades",    live: false },
+            { id: "calendar",       icon: Calendar,      label: "Calendar",     live: false },
+            { id: "discussions",    icon: MessageSquare, label: "Discussions",  live: false },
+            { id: "live-classroom", icon: Radio,         label: "Live Class",   live: true  },
+          ].map((item) => {
+            const isActive = activeTab === (item.id as typeof activeTab);
+            return (
+              <button
+                key={item.id}
+                id={`${item.id}-tab`}
+                onClick={() => setActiveTab(item.id as typeof activeTab)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[13px] font-medium transition-all ${
+                  isActive
+                    ? "bg-emerald-500/[0.15] dark:bg-emerald-500/[0.12] text-emerald-700 dark:text-emerald-400"
+                    : "text-[#3a3a3c] dark:text-white/60 hover:bg-black/[0.05] dark:hover:bg-white/[0.06] hover:text-[#1d1d1f] dark:hover:text-white/85"
+                }`}
+              >
+                {item.live && !isActive ? (
+                  <span className="relative flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                    <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                  </span>
+                ) : (
+                  <item.icon className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-emerald-500" : ""}`} strokeWidth={1.6} />
+                )}
+                <span className="hidden sm:inline">{item.label}</span>
+              </button>
+            );
+          })}
+
+          {/* Courses header */}
+          <div className="pt-3 pb-1">
+            <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/30">Courses</p>
+          </div>
+
+          {/* Courses list */}
+          {loading ? (
+            <div className="space-y-1 animate-pulse" id="courses-skeleton">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-8 apple-skeleton" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {courses.map((c) => {
+                const isSelected = selectedCourse?.id === c.id;
+                const cStats = courseStatsByCode[c.code];
+                const avgPct = cStats?.avgPct ?? null;
+                const barColor = avgPct === null ? "bg-emerald-400/40" : avgPct >= 70 ? "bg-emerald-500" : avgPct >= 50 ? "bg-amber-400" : "bg-red-400";
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => { fetchCourseDetail(c.id); setSelectedNote(null); setNotesFilterCourseId(c.id); }}
+                    className={`w-full flex flex-col gap-1 px-3 py-2 rounded-[10px] text-left transition-all ${
+                      isSelected
+                        ? "bg-emerald-500/[0.12] dark:bg-emerald-500/[0.10] text-emerald-700 dark:text-emerald-400"
+                        : "text-[#3a3a3c] dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.05] hover:text-[#1d1d1f] dark:hover:text-white/75"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <span className={`font-mono text-[10.5px] font-bold uppercase tracking-wide flex-shrink-0 w-[52px] truncate ${isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-[#6e6e73] dark:text-white/35"}`}>
+                        {c.code}
+                      </span>
+                      <span className="text-[11px] font-medium truncate flex-1 leading-tight">{c.title}</span>
+                      {isSelected && <ChevronRight className="h-3 w-3 flex-shrink-0 text-emerald-500" />}
+                    </div>
+                    {cStats && (
+                      <div className="h-[3px] rounded-full bg-black/[0.06] dark:bg-white/[0.07] overflow-hidden ml-[60px]">
+                        <div className={`h-full rounded-full transition-all ${barColor}`}
+                          style={{ width: `${avgPct !== null ? Math.min(avgPct, 100) : 30}%` }} />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Academic year selector */}
+          <div className="px-1 pt-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/30 mb-1.5 px-2">Academic Year</p>
+            <select
+              value={currentYear}
+              onChange={(e) => handlePromoteYear(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-[8px] text-[11.5px] bg-black/[0.04] dark:bg-white/[0.07] border border-black/[0.09] dark:border-white/[0.10] text-[#1d1d1f] dark:text-white/90 outline-none focus:border-emerald-500/60 transition cursor-pointer"
+              title="Change academic year"
+            >
+              {["Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Extra Year", "Postgraduate"].map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Department selector */}
+          {availableDepartments.length > 0 && (
+            <div className="px-1 pt-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/30 mb-1.5 px-2">Department</p>
+              <select
+                value={currentDepartment}
+                onChange={(e) => handleChangeDepartment(e.target.value)}
+                className={`w-full px-2.5 py-1.5 rounded-[8px] text-[11.5px] border outline-none transition cursor-pointer ${
+                  availableDepartments.some(d => d.name === currentDepartment)
+                    ? "bg-black/[0.04] dark:bg-white/[0.07] border-black/[0.09] dark:border-white/[0.10] text-[#1d1d1f] dark:text-white/90 focus:border-emerald-500/60"
+                    : "bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700/50 text-amber-800 dark:text-amber-300 focus:border-amber-500"
+                }`}
+                title="Change your department"
+              >
+                {!availableDepartments.some(d => d.name === currentDepartment) && (
+                  <option value={currentDepartment}>{currentDepartment} (unverified)</option>
+                )}
+                {availableDepartments.map((d) => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+              {!availableDepartments.some(d => d.name === currentDepartment) && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 px-2 mt-1 leading-tight">Please select your department — it controls what courses and assessments you see.</p>
+              )}
+            </div>
+          )}
+
+          {/* Additional departments (borrowed courses / extra year) */}
+          {availableDepartments.filter(d => d.name !== currentDepartment).length > 0 && (
+            <div className="px-1 pt-2 pb-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/30 mb-1.5 px-2">Also enrolled in</p>
+              <div className="space-y-0.5 px-2">
+                {availableDepartments.filter(d => d.name !== currentDepartment).map(d => (
+                  <label key={d.id} className="flex items-center gap-2 cursor-pointer py-0.5 group">
+                    <input
+                      type="checkbox"
+                      checked={additionalDepts.includes(d.name)}
+                      onChange={() => handleToggleAdditionalDept(d.name)}
+                      className="h-3 w-3 rounded accent-emerald-500 cursor-pointer"
+                    />
+                    <span className="text-[11px] text-[#3a3a3c] dark:text-white/55 group-hover:text-[#1d1d1f] dark:group-hover:text-white/80 transition leading-tight">{d.name}</span>
+                  </label>
+                ))}
+              </div>
+              {additionalDepts.length > 0 && (
+                <p className="text-[9.5px] text-emerald-600 dark:text-emerald-400 px-2 mt-1">You see content from {1 + additionalDepts.length} departments.</p>
+              )}
+            </div>
+          )}
+        </nav>
+
+        {/* Bottom: theme + logout */}
+        <div className="flex-shrink-0 px-2 pb-4 pt-3 space-y-0.5 border-t border-black/[0.06] dark:border-white/[0.06]">
+          <button
+            id="theme-toggle-student-btn"
+            onClick={onToggleTheme}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[13px] font-medium text-[#3a3a3c] dark:text-white/55 hover:bg-black/[0.05] dark:hover:bg-white/[0.06] transition"
+          >
+            {theme === "dark"
+              ? <Sun className="h-4 w-4 flex-shrink-0" strokeWidth={1.6} />
+              : <Moon className="h-4 w-4 flex-shrink-0" strokeWidth={1.6} />
+            }
+            <span className="hidden sm:inline">{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+          </button>
+          <button
+            id="student-logout-btn"
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[13px] font-medium text-red-500 dark:text-red-400 hover:bg-red-500/[0.08] transition"
+          >
+            <LogOut className="h-4 w-4 flex-shrink-0" strokeWidth={1.6} />
+            <span className="hidden sm:inline">Sign Out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* ── MOBILE SIDEBAR DRAWER ── */}
+      {mobileSidebarOpen && (
+        <div className="sm:hidden fixed inset-0 z-[200] flex">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} />
+          {/* Panel */}
+          <div className="relative w-[280px] max-w-[85vw] h-full apple-sidebar flex flex-col shadow-2xl overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 pt-5 pb-3 flex-shrink-0">
+              <span className="text-[13px] font-bold text-[#1d1d1f] dark:text-white/80">Menu</span>
+              <button onClick={() => setMobileSidebarOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-black/[0.06] dark:bg-white/[0.09] text-[#3a3a3c] dark:text-white/60">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Avatar + profile */}
+            <div className="px-3 pb-3 flex-shrink-0">
+              <button onClick={() => { setIsAvatarModalOpen(true); setMobileSidebarOpen(false); }}
+                className="group w-full flex items-center gap-3 p-2.5 rounded-[12px] hover:bg-black/[0.05] dark:hover:bg-white/[0.06] transition cursor-pointer text-left">
+                <div className="relative flex-shrink-0">
+                  <UserAvatar userId={user.id} role="student" size={34} initials={user.fullName} refreshTrigger={avatarRefreshTrigger} className="rounded-full ring-[1.5px] ring-black/10 dark:ring-white/15 shadow-sm" />
+                  <div className="absolute inset-0 bg-black/45 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <Camera className="h-3 w-3 text-white" />
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/90 leading-tight truncate">{user.fullName}</p>
+                  <p className="text-[11px] text-[#6e6e73] dark:text-white/38 font-mono truncate mt-0.5">{user.regNumber}</p>
+                </div>
+              </button>
+            </div>
+
+            {/* Nav tabs */}
+            <nav className="flex-1 px-2 space-y-0.5">
+              {[
+                { id: "notes",          icon: FileText,      label: "Materials"   },
+                { id: "quizzes",        icon: Award,         label: "Quizzes"     },
+                { id: "exams",          icon: Upload,        label: "Exams"       },
+                { id: "assignments",    icon: Pencil,        label: "Assignments" },
+                { id: "history",        icon: ClipboardList, label: "My Grades"   },
+                { id: "calendar",       icon: Calendar,      label: "Calendar"    },
+                { id: "discussions",    icon: MessageSquare, label: "Discussions" },
+                { id: "live-classroom", icon: Radio,         label: "Live Class"  },
+              ].map((item) => {
+                const isActive = activeTab === (item.id as typeof activeTab);
+                return (
+                  <button key={item.id} onClick={() => { setActiveTab(item.id as typeof activeTab); setMobileSidebarOpen(false); }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[13px] font-medium transition-all ${isActive ? "bg-emerald-500/[0.15] dark:bg-emerald-500/[0.12] text-emerald-700 dark:text-emerald-400" : "text-[#3a3a3c] dark:text-white/60 hover:bg-black/[0.05] dark:hover:bg-white/[0.06]"}`}>
+                    <item.icon className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-emerald-500" : ""}`} strokeWidth={1.6} />
+                    {item.label}
+                  </button>
+                );
+              })}
+
+              {/* Courses */}
+              <div className="pt-3 pb-1">
+                <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/30">Courses</p>
+              </div>
+              {courses.map((c) => {
+                const isSelected = selectedCourse?.id === c.id;
+                return (
+                  <button key={c.id} onClick={() => { fetchCourseDetail(c.id); setSelectedNote(null); setNotesFilterCourseId(c.id); setMobileSidebarOpen(false); }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-[10px] text-left transition-all ${isSelected ? "bg-emerald-500/[0.12] text-emerald-700 dark:text-emerald-400" : "text-[#3a3a3c] dark:text-white/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.05]"}`}>
+                    <span className={`font-mono text-[10.5px] font-bold uppercase tracking-wide flex-shrink-0 w-[52px] truncate ${isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-[#6e6e73] dark:text-white/35"}`}>{c.code}</span>
+                    <span className="text-[11px] font-medium truncate flex-1 leading-tight">{c.title}</span>
+                    {isSelected && <ChevronRight className="h-3 w-3 flex-shrink-0 text-emerald-500" />}
+                  </button>
+                );
+              })}
+
+              {/* Academic Year */}
+              <div className="px-1 pt-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/30 mb-1.5 px-2">Academic Year</p>
+                <select value={currentYear} onChange={(e) => handlePromoteYear(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-[8px] text-[11.5px] bg-black/[0.04] dark:bg-white/[0.07] border border-black/[0.09] dark:border-white/[0.10] text-[#1d1d1f] dark:text-white/90 outline-none focus:border-emerald-500/60 transition cursor-pointer">
+                  {["Year 1","Year 2","Year 3","Year 4","Year 5","Extra Year","Postgraduate"].map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+
+              {/* Department */}
+              {availableDepartments.length > 0 && (
+                <div className="px-1 pt-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/30 mb-1.5 px-2">Department</p>
+                  <select value={currentDepartment} onChange={(e) => handleChangeDepartment(e.target.value)}
+                    className={`w-full px-2.5 py-1.5 rounded-[8px] text-[11.5px] border outline-none transition cursor-pointer ${availableDepartments.some(d => d.name === currentDepartment) ? "bg-black/[0.04] dark:bg-white/[0.07] border-black/[0.09] dark:border-white/[0.10] text-[#1d1d1f] dark:text-white/90 focus:border-emerald-500/60" : "bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700/50 text-amber-800 dark:text-amber-300"}`}>
+                    {!availableDepartments.some(d => d.name === currentDepartment) && <option value={currentDepartment}>{currentDepartment} (unverified)</option>}
+                    {availableDepartments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+                  </select>
+                  {!availableDepartments.some(d => d.name === currentDepartment) && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 px-2 mt-1 leading-tight">Select your department — it controls what you see.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Also enrolled in */}
+              {availableDepartments.filter(d => d.name !== currentDepartment).length > 0 && (
+                <div className="px-1 pt-3 pb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/30 mb-1.5 px-2">Also enrolled in</p>
+                  <div className="space-y-0.5 px-2">
+                    {availableDepartments.filter(d => d.name !== currentDepartment).map(d => (
+                      <label key={d.id} className="flex items-center gap-2 cursor-pointer py-1 group">
+                        <input type="checkbox" checked={additionalDepts.includes(d.name)} onChange={() => handleToggleAdditionalDept(d.name)} className="h-3.5 w-3.5 rounded accent-emerald-500 cursor-pointer" />
+                        <span className="text-[12px] text-[#3a3a3c] dark:text-white/55 leading-tight">{d.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {additionalDepts.length > 0 && (
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 px-2 mt-1">Viewing {1 + additionalDepts.length} departments.</p>
+                  )}
+                </div>
+              )}
+            </nav>
+
+            {/* Bottom: theme + logout */}
+            <div className="flex-shrink-0 px-2 pb-6 pt-3 space-y-0.5 border-t border-black/[0.06] dark:border-white/[0.06]">
+              <button onClick={onToggleTheme} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[13px] font-medium text-[#3a3a3c] dark:text-white/55 hover:bg-black/[0.05] dark:hover:bg-white/[0.06] transition">
+                {theme === "dark" ? <Sun className="h-4 w-4 flex-shrink-0" strokeWidth={1.6} /> : <Moon className="h-4 w-4 flex-shrink-0" strokeWidth={1.6} />}
+                {theme === "dark" ? "Light Mode" : "Dark Mode"}
+              </button>
+              <button onClick={onLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[13px] font-medium text-red-500 dark:text-red-400 hover:bg-red-500/[0.08] transition">
+                <LogOut className="h-4 w-4 flex-shrink-0" strokeWidth={1.6} />
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MAIN PANEL ── */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10">
+
+        {/* Top toolbar */}
+        <header className="apple-header-bar flex-shrink-0 flex items-center gap-2 px-3 sm:px-6 h-[44px] border-b border-black/[0.05] dark:border-white/[0.04] backdrop-blur-xl">
+          {/* Hamburger — mobile only */}
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            className="sm:hidden flex items-center justify-center w-9 h-9 rounded-[10px] text-[#3a3a3c] dark:text-white/60 hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition flex-shrink-0"
+            aria-label="Open menu"
+          >
+            <svg width="18" height="14" viewBox="0 0 18 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <line x1="0" y1="1" x2="18" y2="1"/><line x1="0" y1="7" x2="18" y2="7"/><line x1="0" y1="13" x2="18" y2="13"/>
+            </svg>
+          </button>
+          <h1 className="flex-1 text-[13.5px] font-semibold text-[#1d1d1f] dark:text-white/88 tracking-[-0.01em]">
+            {activeTab === "notes" ? "Lecture Materials"
+              : activeTab === "quizzes" ? "Academic Quizzes"
+              : activeTab === "exams" ? "Written Examinations"
+              : activeTab === "assignments" ? "Assignments"
+              : activeTab === "history" ? "My Grades"
+              : activeTab === "calendar" ? "Calendar"
+              : activeTab === "discussions" ? "Discussions"
+              : "Virtual Classroom"}
+          </h1>
+          <div className="flex items-center gap-1">
+            {selectedCourse && (
+              <span className="hidden md:inline px-2.5 py-1 rounded-full bg-black/[0.05] dark:bg-white/[0.07] text-[11px] font-mono font-bold text-[#6e6e73] dark:text-white/45 uppercase tracking-wider">
+                {selectedCourse.code}
+              </span>
+            )}
+            {/* Offline indicator */}
+            {isOffline && (
+              <span className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-[10.5px] font-bold text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40">
+                <Zap className="h-3 w-3" /> Offline
+              </span>
+            )}
+            {/* Streak badge */}
+            {streak >= 2 && (
+              <span className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-full bg-orange-50 dark:bg-orange-950/20 text-[10.5px] font-bold text-orange-600 dark:text-orange-400 border border-orange-100 dark:border-orange-900/30">
+                <Flame className="h-3 w-3" /> {streak}d
+              </span>
+            )}
+            {/* In-app notification bell (push prompt embedded inside on all screens) */}
+            <NotificationBell token={token} onRequestPush={(!pushGranted && "Notification" in window && Notification.permission !== "granted") ? subscribeToPush : undefined} />
+            {/* Mobile-only: theme + logout */}
+            <button
+              onClick={onToggleTheme}
+              className="sm:hidden flex items-center justify-center w-9 h-9 rounded-[10px] text-[#6e6e73] dark:text-white/50 hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition"
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" strokeWidth={1.6} /> : <Moon className="h-4 w-4" strokeWidth={1.6} />}
+            </button>
+            <button
+              onClick={onLogout}
+              className="sm:hidden flex items-center justify-center w-9 h-9 rounded-[10px] text-red-500 dark:text-red-400 hover:bg-red-500/[0.08] transition"
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4" strokeWidth={1.6} />
+            </button>
+          </div>
+        </header>
+
+        {/* Scrollable content */}
+        <main className="flex-1 overflow-y-auto">
+          <div className={`py-5 pb-[96px] sm:pb-5 max-w-5xl mx-auto w-full space-y-5 ${activeTab === "live-classroom" ? "px-2 sm:px-6" : "px-6"}`}>
+
+          {/* ── ANNOUNCEMENTS BANNER ── */}
+          {announcements.filter(a => !dismissedAnns.has(a.id)).slice(0, 3).map(ann => (
+            <motion.div key={ann.id} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3 p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 rounded-[12px]">
+              <Megaphone className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[12.5px] font-semibold text-amber-900 dark:text-amber-200">{ann.title}</p>
+                <p className="text-[11.5px] text-amber-800 dark:text-amber-300/80 mt-0.5 leading-relaxed">{ann.body}</p>
+                <p className="text-[10px] font-mono text-amber-600/60 dark:text-amber-400/40 mt-1">{ann.lecturer?.name} · {new Date(ann.createdAt).toLocaleDateString()}</p>
+              </div>
+              <button onClick={() => setDismissedAnns(p => new Set([...p, ann.id]))} className="flex-shrink-0 p-1 text-amber-400 hover:text-amber-600 cursor-pointer"><X className="h-3.5 w-3.5" /></button>
+            </motion.div>
+          ))}
+
+          {/* ── PROGRESS OVERVIEW ── */}
+          {attemptsList.filter(a => a.isCompleted).length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {(() => {
+                const done = attemptsList.filter(a => a.isCompleted);
+                const quizAvg = done.length > 0 ? done.reduce((s, a) => s + (a.score ?? 0), 0) / done.length : 0;
+                const gradedExams = examSubmissions.filter(e => e.isGraded);
+                const examAvg = gradedExams.length > 0
+                  ? gradedExams.reduce((s, e) => s + (e.totalMarks ? ((e.score ?? 0) / e.totalMarks) * 100 : (e.score ?? 0)), 0) / gradedExams.length
+                  : 0;
+                return [
+                  { icon: Award,       label: "Quizzes Done",   value: done.length },
+                  { icon: TrendingUp,  label: "Quiz Avg",        value: `${quizAvg.toFixed(1)}%` },
+                  { icon: FileText,    label: "Exams Submitted", value: examSubmissions.length },
+                  { icon: CheckCircle, label: "Exam Avg",        value: gradedExams.length > 0 ? `${examAvg.toFixed(1)}%` : "—" },
+                ].map(stat => (
+                  <div key={stat.label} className="text-center p-3 apple-card rounded-[12px]">
+                    <stat.icon className="h-4 w-4 text-emerald-500 mx-auto mb-1" strokeWidth={1.8} />
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40">{stat.label}</p>
+                    <p className="text-[18px] font-black text-[#1d1d1f] dark:text-white/90 tabular-nums">{stat.value}</p>
+                  </div>
+                ));
+              })()}
+            </motion.div>
+          )}
+
+          {/* ── LEADERBOARD MODAL ── */}
+          {leaderboard !== null && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setLeaderboard(null)}>
+              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="apple-card max-w-sm w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between">
+                  <div><h2 className="apple-title flex items-center gap-2"><Trophy className="h-4 w-4 text-amber-500" /> Leaderboard</h2><p className="apple-subtitle truncate">{leaderboardQuizTitle}</p></div>
+                  <button onClick={() => setLeaderboard(null)} className="p-1.5 rounded-[8px] hover:bg-black/[0.05] dark:hover:bg-white/[0.07] cursor-pointer"><X className="h-4 w-4 text-[#6e6e73]" /></button>
+                </div>
+                <div className="p-4 space-y-2">
+                  {leaderboard.length === 0 ? <p className="text-center text-[12px] text-[#6e6e73] py-6">No completed attempts yet.</p> :
+                    leaderboard.map(entry => (
+                      <div key={entry.rank} className={`flex items-center gap-3 p-3 rounded-[10px] border ${
+                        entry.isCurrentUser
+                          ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200/70 dark:border-emerald-800/40"
+                          : entry.rank <= 3
+                            ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-800/30"
+                            : "border-black/[0.06] dark:border-white/[0.06]"
+                      }`}>
+                        <span className={`text-[13px] font-black w-6 text-center flex-shrink-0 ${entry.rank === 1 ? "text-amber-500" : entry.rank === 2 ? "text-slate-400" : entry.rank === 3 ? "text-orange-400" : "text-[#6e6e73]"}`}>
+                          {entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : `#${entry.rank}`}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12.5px] font-semibold text-[#1d1d1f] dark:text-white/90 truncate">
+                            {entry.displayName}
+                            {entry.isCurrentUser && <span className="ml-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded-full">You</span>}
+                          </p>
+                          <p className="text-[10.5px] text-[#6e6e73] dark:text-white/40">{entry.department}</p>
+                        </div>
+                        <span className={`flex-shrink-0 text-[12px] font-bold ${entry.score >= 50 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{entry.score.toFixed(1)}%</span>
+                      </div>
+                    ))
+                  }
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* ── NOTES TAB ── */}
+          {activeTab === "notes" && (
+            <div id="notes-view-container">
+              {!selectedNote ? (
+                <motion.div className="apple-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 280, damping: 26 }}>
+                  <div className="px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h2 className="apple-title">Lecture Materials</h2>
+                      <p className="apple-subtitle">Browse and study uploaded lecture notes.</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => setShowOnlyBookmarked(b => !b)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11.5px] font-semibold border transition cursor-pointer ${
+                          showOnlyBookmarked
+                            ? "bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700/50 text-amber-700 dark:text-amber-400"
+                            : "border-black/[0.09] dark:border-white/[0.10] text-[#6e6e73] dark:text-white/40 hover:border-amber-300 hover:text-amber-600"
+                        }`}
+                      >
+                        <Star className="h-3.5 w-3.5" fill={showOnlyBookmarked ? "currentColor" : "none"} />
+                        Saved
+                      </button>
+                      <Filter className="h-3.5 w-3.5 text-[#6e6e73] dark:text-white/40 flex-shrink-0" />
+                      <select
+                        id="notes-course-filter"
+                        value={notesFilterCourseId}
+                        onChange={(e) => setNotesFilterCourseId(e.target.value)}
+                        className="form-input"
+                        style={{ width: "auto" }}
+                      >
+                        <option value="">All Courses</option>
+                        {courses.map((c) => <option key={c.id} value={c.id}>{c.code} / {c.title}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="p-5">
+                    {loading ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-pulse" id="notes-skeleton">
+                        {[1, 2, 3, 4].map((i) => (
+                          <div key={i} className="p-5 border border-black/[0.06] dark:border-white/[0.05] rounded-[12px] space-y-3">
+                            <div className="flex justify-between">
+                              <div className="h-4 bg-black/[0.06] dark:bg-white/[0.06] rounded-lg w-14" />
+                              <div className="h-3 bg-black/[0.06] dark:bg-white/[0.06] rounded-lg w-20" />
+                            </div>
+                            <div className="h-4 bg-black/[0.06] dark:bg-white/[0.06] rounded-lg w-3/4" />
+                            <div className="h-3 bg-black/[0.06] dark:bg-white/[0.06] rounded-lg w-1/2" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (() => {
+                      const visibleNotes = allNotes.filter(n =>
+                        (!notesFilterCourseId || n.courseId === notesFilterCourseId) &&
+                        (!showOnlyBookmarked || bookmarkedNotes.has(n.id))
+                      );
+                      return visibleNotes.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {visibleNotes.map((note) => {
+                          const noteCourse = courses.find((c) => c.id === note.courseId) || note.course;
+                          const isBookmarked = bookmarkedNotes.has(note.id);
+                          return (
+                            <div key={note.id} className="group p-5 border border-black/[0.07] dark:border-white/[0.07] hover:border-emerald-300/60 dark:hover:border-emerald-700/40 rounded-[12px] transition-all duration-200 flex flex-col justify-between bg-black/[0.01] dark:bg-white/[0.02] hover:shadow-md">
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                                    {noteCourse?.code || "COURSE"}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); toggleBookmark(note.id); }}
+                                      title={isBookmarked ? "Remove bookmark" : "Bookmark note"}
+                                      className={`transition cursor-pointer ${isBookmarked ? "text-amber-500" : "text-[#c7c7cc] dark:text-white/20 hover:text-amber-400"}`}
+                                    >
+                                      <Star className="h-3.5 w-3.5" fill={isBookmarked ? "currentColor" : "none"} strokeWidth={isBookmarked ? 0 : 1.8} />
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); shareWhatsApp("note", note.id, note.title, noteCourse?.code); }}
+                                      title="Share on WhatsApp"
+                                      className="text-[#c7c7cc] dark:text-white/20 hover:text-green-600 dark:hover:text-green-400 transition cursor-pointer"
+                                    >
+                                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                                    </button>
+                                  <span className="flex items-center gap-1 text-[11px] font-mono text-[#6e6e73] dark:text-white/35">
+                                    <Calendar className="h-3 w-3" />
+                                    {new Date(note.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                  </span>
+                                  </div>
+                                </div>
+                                <h4 className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/90 leading-snug">{note.title}</h4>
+                                <p className="text-[11px] text-[#6e6e73] dark:text-white/45 leading-relaxed line-clamp-2">{noteCourse?.title || "Academic Resource"}</p>
+                              </div>
+                              <button
+                                onClick={() => setSelectedNote(note)}
+                                className="mt-4 pt-3.5 border-t border-black/[0.06] dark:border-white/[0.06] flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-300 cursor-pointer w-full text-left transition-colors"
+                              >
+                                Open Lecture Note
+                                <ChevronRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="apple-empty-state">
+                        <div className="apple-empty-state__icon">
+                          <FileText className="h-6 w-6 text-[#8e8e93] dark:text-white/30" />
+                        </div>
+                        <p className="apple-empty-state__title">{showOnlyBookmarked ? "No saved notes" : "No lecture materials"}</p>
+                        <p className="apple-empty-state__body">{showOnlyBookmarked ? "Tap the star on any note to save it here." : "Lecture notes uploaded by your lecturers will appear here automatically."}</p>
+                      </div>
+                    );
+                    })()}
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div id="note-reader" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="apple-card">
+                  <div className="px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06] flex items-start justify-between gap-4">
+                    <div>
+                      <button onClick={() => setSelectedNote(null)} className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-600 mb-1.5 inline-flex items-center gap-1 cursor-pointer">
+                        <ArrowLeft className="h-3 w-3" /> Back to Materials
+                      </button>
+                      <h2 className="apple-title">{selectedNote.title}</h2>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0 mt-6">
+                      <button
+                        onClick={() => shareWhatsApp("note", selectedNote.id, selectedNote.title)}
+                        title="Share on WhatsApp"
+                        className="p-1.5 rounded-lg text-[#8e8e93] dark:text-white/30 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition cursor-pointer"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                      </button>
+                      <span className="text-[11px] font-mono text-[#6e6e73] dark:text-white/35 flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {new Date(selectedNote.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-5 sm:p-7">
+                    <MarkdownView content={selectedNote.content} />
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          )}
+
+          {/* ── QUIZZES TAB ── */}
+          {activeTab === "quizzes" && (
+            <div id="quizzes-view-container">
+              <motion.div className="apple-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 280, damping: 26 }}>
+                <div className="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06]">
+                  <h2 className="apple-title">Academic Quizzes</h2>
+                  <p className="apple-subtitle">Secure timed assessments for your enrolled courses.</p>
+                </div>
+                <div className="p-5 space-y-4">
+                  {/* Mobile-only course selector — sidebar handles this on desktop */}
+                  {courses.length > 0 && (
+                    <div className="sm:hidden -mx-5 px-5 pb-1">
+                      <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
+                        {courses.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => fetchCourseDetail(c.id)}
+                            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[11.5px] font-semibold border transition-colors cursor-pointer ${
+                              selectedCourse?.id === c.id
+                                ? "bg-emerald-600 border-emerald-600 text-white"
+                                : "border-black/[0.10] dark:border-white/[0.12] text-[#3a3a3c] dark:text-white/55 hover:border-emerald-400 dark:hover:border-emerald-700"
+                            }`}
+                          >
+                            {c.code}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {submitError && !activeQuiz && (
+                    <div className="flex items-center gap-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 text-red-800 dark:text-red-300 rounded-[10px] p-3.5 text-[12.5px]">
+                      <ShieldAlert className="h-4 w-4 shrink-0 text-red-500" />
+                      <span className="font-semibold">{submitError}</span>
+                      <button onClick={() => setSubmitError(null)} className="ml-auto text-red-400 hover:text-red-600 cursor-pointer"><X className="h-3.5 w-3.5" /></button>
+                    </div>
+                  )}
+
+                  {loading ? (
+                    <div className="space-y-3 animate-pulse" id="quizzes-skeleton">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="flex items-center justify-between p-4 rounded-[12px] border border-black/[0.06] dark:border-white/[0.06]">
+                          <div className="space-y-2 w-1/2">
+                            <div className="h-4 bg-black/[0.06] dark:bg-white/[0.06] rounded-lg w-40" />
+                            <div className="h-3 bg-black/[0.04] dark:bg-white/[0.04] rounded-lg w-32" />
+                          </div>
+                          <div className="h-8 bg-black/[0.06] dark:bg-white/[0.06] rounded-[10px] w-24" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : quizzes && quizzes.length > 0 ? (
+                    <div className="space-y-3">
+                      {quizzes.map((quiz) => {
+                        const attempt = attempts[quiz.id];
+                        const isCompleted = attempt?.isCompleted;
+                        const period = getPeriodStatus(quiz.availableFrom, quiz.availableUntil);
+                        const isExpired = period.type === "expired";
+                        const isUpcoming = period.type === "upcoming";
+                        void periodTick; // consumed so re-renders update countdown
+                        return (
+                          <div key={quiz.id} className={`flex items-center justify-between p-4 rounded-[12px] border bg-black/[0.01] dark:bg-white/[0.02] hover:shadow-sm transition-all duration-200 ${highlightId === quiz.id ? "border-emerald-400 dark:border-emerald-500 ring-2 ring-emerald-400/30" : "border-black/[0.07] dark:border-white/[0.07] hover:border-emerald-300/60 dark:hover:border-emerald-700/40"}`}>
+                            <div className="space-y-1 min-w-0">
+                              <h4 className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/90 truncate">{quiz.title}</h4>
+                              <div className="flex items-center gap-3 text-[10.5px] text-[#6e6e73] dark:text-white/40 font-mono">
+                                <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {quiz.durationMinutes} min</span>
+                                <span className="flex items-center gap-1"><FileText className="h-3 w-3" /> {quiz._count?.questions || 0} questions</span>
+                              </div>
+                              {/* Period countdown / status */}
+                              {!isCompleted && period.until && period.type === "active" && (
+                                <div className="flex items-center gap-1 text-[10.5px] font-mono text-amber-600 dark:text-amber-400 font-semibold">
+                                  <Clock className="h-3 w-3" />
+                                  Closes in {formatCountdown(period.until)}
+                                </div>
+                              )}
+                              {!isCompleted && isUpcoming && period.from && (
+                                <div className="text-[10.5px] font-mono text-blue-600 dark:text-blue-400 font-semibold">
+                                  Opens {period.from.toLocaleString()}
+                                </div>
+                              )}
+                              {!isCompleted && isExpired && (
+                                <div className="text-[10.5px] font-mono text-slate-500 dark:text-slate-500 font-semibold">
+                                  Access period ended
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                              <button
+                                type="button"
+                                title="Share on WhatsApp"
+                                onClick={() => shareWhatsApp("quiz", quiz.id, quiz.title, `${quiz._count?.questions || 0} questions · ${quiz.durationMinutes} min`)}
+                                className="p-1.5 rounded-lg text-[#8e8e93] dark:text-white/30 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition cursor-pointer flex-shrink-0"
+                              >
+                                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                              </button>
+                              {isCompleted ? (
+                                <div className="text-right space-y-1">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-semibold bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                                    Score: {attempt.score?.toFixed(1)}%
+                                  </span>
+                                  <p className="text-[11px] text-[#6e6e73] dark:text-white/35 font-mono text-right">
+                                    {new Date(attempt.submittedAt!).toLocaleDateString()}
+                                  </p>
+                                  <button onClick={() => fetchLeaderboard(quiz.id, quiz.title)}
+                                    className="flex items-center gap-1 text-[10.5px] font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-500 cursor-pointer ml-auto">
+                                    <Trophy className="h-3 w-3" /> Leaderboard
+                                  </button>
+                                </div>
+                              ) : isExpired ? (
+                                <span className="px-4 py-2.5 rounded-[10px] bg-black/[0.05] dark:bg-white/[0.05] text-[#6e6e73] dark:text-white/35 text-[13px] font-semibold cursor-not-allowed">
+                                  Closed
+                                </span>
+                              ) : isUpcoming ? (
+                                <span className="px-4 py-2.5 rounded-[10px] bg-black/[0.05] dark:bg-white/[0.05] text-[#6e6e73] dark:text-white/35 text-[13px] font-semibold cursor-not-allowed">
+                                  Not Open Yet
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleStartExam(quiz)}
+                                  className="px-4 py-2.5 rounded-[10px] bg-emerald-600 hover:bg-emerald-500 text-white text-[13px] font-semibold transition shadow-sm flex items-center gap-1.5"
+                                >
+                                  <Play className="h-3 w-3 fill-current" />
+                                  Start
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="apple-empty-state">
+                      <div className="apple-empty-state__icon">
+                        <Award className="h-6 w-6 text-[#8e8e93] dark:text-white/30" />
+                      </div>
+                      <p className="apple-empty-state__title">No quizzes available</p>
+                      <p className="apple-empty-state__body">Quizzes assigned by your lecturers will appear here when activated.</p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* ── LIVE CLASSROOM TAB ── */}
+          {activeTab === "live-classroom" && (
+            <div id="live-classroom-view-container" className="w-full overflow-x-hidden">
+              <motion.div className="apple-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 280, damping: 26 }}>
+                <div className="px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-[14px] font-semibold text-[#1d1d1f] dark:text-white/90 flex items-center gap-2">
+                      <Radio className="h-4 w-4 text-red-500 animate-pulse" />
+                      Virtual Classroom
+                    </h2>
+                    <p className="apple-subtitle">
+                      {activeLiveSession
+                        ? `${activeLiveSession.course?.code ?? ""} · ${activeLiveSession.topic}`
+                        : allLiveSessions.length > 0
+                          ? `${allLiveSessions.length} live class${allLiveSessions.length !== 1 ? "es" : ""} available`
+                          : "No live classes right now"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {activeLiveSession && (
+                      <>
+                        <button
+                          onClick={handleToggleHandRaise}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-[10px] border transition-colors ${handRaised ? "bg-amber-100 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400" : "border-black/[0.09] dark:border-white/[0.10] text-[#3a3a3c] dark:text-white/60 hover:border-amber-300"}`}
+                        >
+                          <ThumbsUp className="h-3.5 w-3.5" /> {handRaised ? "Hand Raised" : "Raise Hand"}
+                        </button>
+                        <button onClick={() => { setActiveLiveSession(null); setJoinedCourseId(null); fetchAllLiveSessions(); }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold border border-black/[0.09] dark:border-white/[0.10] text-[#6e6e73] dark:text-white/40 hover:text-red-500 hover:border-red-300 rounded-[8px] transition cursor-pointer">
+                          <ArrowLeft className="h-3.5 w-3.5" /> Leave
+                        </button>
+                      </>
+                    )}
+                    {activeLiveSession ? (
+                      <span className="flex items-center gap-1.5 px-3 py-1 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 text-[12px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-900/30 rounded-full">
+                        <span className="h-1.5 w-1.5 bg-red-600 rounded-full animate-ping" />
+                        Live
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 bg-black/[0.04] dark:bg-white/[0.04] text-[#6e6e73] dark:text-white/40 text-[12px] font-bold uppercase tracking-wider border border-black/[0.07] dark:border-white/[0.07] rounded-full">Offline</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-2 sm:p-5">
+                  {!activeLiveSession ? (
+                    <div className="space-y-4">
+                      {allLiveSessions.length === 0 ? (
+                        <div className="py-16 text-center border border-dashed border-black/[0.10] dark:border-white/[0.10] rounded-[12px]">
+                          <Radio className="h-8 w-8 text-black/20 dark:text-white/20 mx-auto mb-3" />
+                          <h4 className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/70">No Live Lectures Right Now</h4>
+                          <p className="text-[12px] text-[#6e6e73] dark:text-white/40 max-w-sm mx-auto mt-1.5 leading-relaxed">When a lecturer goes live, their class will appear here. Check back soon.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40">Live Now — Select a Class to Join</p>
+                          {allLiveSessions.map((session: any) => (
+                            <motion.div key={session.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                              className={`flex items-center justify-between gap-3 p-4 border bg-red-50/40 dark:bg-red-950/10 rounded-[14px] ${highlightId === session.id ? "border-emerald-400 dark:border-emerald-500 ring-2 ring-emerald-400/30" : "border-red-100 dark:border-red-900/30"}`}>
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="flex-shrink-0 relative">
+                                  <span className="flex h-2.5 w-2.5">
+                                    <span className="animate-ping absolute h-2.5 w-2.5 rounded-full bg-red-400 opacity-75" />
+                                    <span className="relative h-2.5 w-2.5 rounded-full bg-red-500" />
+                                  </span>
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/90 truncate">{session.topic}</p>
+                                  <p className="text-[11.5px] text-[#6e6e73] dark:text-white/50 truncate">
+                                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{session.course?.code}</span>
+                                    {" · "}{session.course?.title}
+                                    {" · "}{session.course?.lecturer?.name}
+                                  </p>
+                                  <p className="text-[10.5px] font-mono text-[#6e6e73] dark:text-white/30 mt-0.5">
+                                    {session.attendance?.length ?? 0} student{session.attendance?.length !== 1 ? "s" : ""} joined · Started {new Date(session.createdAt).toLocaleTimeString()}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <button
+                                  type="button"
+                                  title="Share on WhatsApp"
+                                  onClick={() => shareWhatsApp("live", session.id, session.topic, `LIVE NOW · ${session.course?.code}`)}
+                                  className="p-1.5 rounded-lg text-[#8e8e93] dark:text-white/30 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition cursor-pointer"
+                                >
+                                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                                </button>
+                                <button onClick={() => joinLiveSession(session.course.id)}
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-[12px] font-semibold rounded-[10px] transition cursor-pointer">
+                                  <Play className="h-3.5 w-3.5 fill-white" /> Join
+                                </button>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (() => {
+                    const slides = activeLiveSession.content.split(/^---$/m).map((s: string) => s.trim()).filter(Boolean);
+                    const currentSlide = activeLiveSession.currentSlide ?? 0;
+                    const slide = slides[Math.min(currentSlide, slides.length - 1)] ?? activeLiveSession.content;
+                    const activePoll: any = (activeLiveSession.polls ?? [])[0] ?? null;
+
+                    return (
+                      <div className="space-y-2 sm:space-y-3">
+                        {activeLiveSession.attachmentName && activeLiveSession.attachmentData && (
+                          <div className="flex items-center justify-between gap-3 p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-[12px]">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <span className="text-[12.5px] font-semibold text-[#1d1d1f] dark:text-white/85">Shared File: {activeLiveSession.attachmentName}</span>
+                            </div>
+                            <a href={activeLiveSession.attachmentData} download={activeLiveSession.attachmentName}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold rounded-[8px] transition">Download</a>
+                          </div>
+                        )}
+
+                        {/* Speaking permission banner */}
+                        {isSpeakingAllowed && (
+                          <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700/50 rounded-[12px]">
+                            <span className="text-[18px]">🎤</span>
+                            <div>
+                              <p className="text-[12.5px] font-bold text-emerald-700 dark:text-emerald-400">You've been allowed to speak</p>
+                              <p className="text-[11px] text-emerald-600/70 dark:text-emerald-400/60">Your mic is now active in the audio room below</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ── Slide — primary content, takes full width ── */}
+                        <SlideView
+                          content={slide}
+                          slideNumber={Math.min(currentSlide, slides.length - 1) + 1}
+                          totalSlides={slides.length}
+                          topic={activeLiveSession.topic}
+                          courseCode={activeLiveSession.course?.code}
+                        />
+                        <p className="text-center text-[10px] font-mono text-[#6e6e73] dark:text-white/30">
+                          <span className="inline-flex items-center gap-1">
+                            <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full" />
+                            Hover slide → fullscreen &nbsp;·&nbsp; Slides auto-advance
+                          </span>
+                        </p>
+
+                        {/* ── Compact audio bar ── */}
+                        <div className="flex items-center justify-between px-3.5 py-2 bg-slate-900 dark:bg-black/50 rounded-[10px]">
+                          <div className="flex items-center gap-2">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute h-2 w-2 rounded-full bg-emerald-400 opacity-75" />
+                              <span className="relative h-2 w-2 rounded-full bg-emerald-500" />
+                            </span>
+                            <span className="text-[11.5px] font-semibold text-slate-200">
+                              {isSpeakingAllowed ? "Mic Active" : "Audio · Mic Muted"}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-500">{activeLiveSession.course?.code ?? ""}</span>
+                          </div>
+                          <button onClick={() => setAudioOpen(o => !o)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-white border border-white/10 hover:border-white/20 rounded-[7px] transition cursor-pointer">
+                            <Mic className="h-3 w-3" /> {audioOpen ? "Hide" : "Audio"}
+                          </button>
+                        </div>
+
+                        {/* Collapsible audio room */}
+                        {audioOpen && (
+                          <LiveAudioRoom
+                            roomId={activeLiveSession.id}
+                            displayName={user.fullName}
+                            role="student"
+                            isMicAllowed={isSpeakingAllowed}
+                          />
+                        )}
+                        <div style={{ display: "none" }}>{String(audioOpen)}</div>
+
+                        {/* Sub-tabs: Chat + Poll only */}
+                        <div className="flex gap-1 bg-black/[0.04] dark:bg-white/[0.04] rounded-[12px] p-1 border border-black/[0.06] dark:border-white/[0.05]">
+                          {([
+                            { id: "poll",   icon: BarChart2,     label: `Poll${activePoll ? " •" : ""}` },
+                            { id: "chat",   icon: MessageSquare, label: `Chat (${liveChats.length})` },
+                          ] as { id: "slides" | "poll" | "chat"; icon: React.ElementType; label: string }[]).map(tab => (
+                            <button key={tab.id} onClick={() => setLiveStudentTab(tab.id)}
+                              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-[10px] transition-all duration-150 ${liveStudentTab === tab.id ? "bg-[#ffffff] dark:bg-white/[0.10] text-[#1d1d1f] dark:text-white/90 shadow-sm border border-black/[0.07] dark:border-white/[0.08]" : "text-[#6e6e73] dark:text-white/50 hover:text-[#1d1d1f] dark:hover:text-white/75"}`}>
+                              <tab.icon className="h-3.5 w-3.5 flex-shrink-0" />
+                              {tab.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Poll */}
+                        {liveStudentTab === "poll" && (
+                          <div>
+                            {!activePoll ? (
+                              <div className="py-10 text-center border border-dashed border-black/[0.10] dark:border-white/[0.10] rounded-[12px]">
+                                <p className="text-[12px] text-[#6e6e73] dark:text-white/40">No active poll right now. Check back soon.</p>
+                              </div>
+                            ) : (
+                              <div className="bg-amber-50/60 dark:bg-amber-950/10 border border-amber-100 dark:border-amber-900/30 rounded-[12px] p-5 space-y-4">
+                                <p className="apple-title">{activePoll.question}</p>
+                                <div className="space-y-2">
+                                  {(JSON.parse(activePoll.optionsJson) as string[]).map(opt => (
+                                    <button key={opt} onClick={() => handlePollRespond(activePoll.id, opt)}
+                                      className={`w-full text-left px-4 py-3 rounded-[10px] border text-[13px] font-semibold transition-all ${myPollAnswer === opt ? "bg-emerald-600 border-emerald-600 text-white" : "border-black/[0.08] dark:border-white/[0.09] text-[#1d1d1f] dark:text-white/80 hover:border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"}`}>
+                                      {opt}
+                                      {myPollAnswer === opt && <CheckCircle className="h-3.5 w-3.5 ml-1.5 inline-block" />}
+                                    </button>
+                                  ))}
+                                </div>
+                                {myPollAnswer && <p className="text-[12px] text-emerald-600 dark:text-emerald-400 text-center">Response recorded: <strong>{myPollAnswer}</strong></p>}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Chat */}
+                        {liveStudentTab === "chat" && (
+                          <div className="border border-black/[0.07] dark:border-white/[0.07] rounded-[12px] overflow-hidden flex flex-col h-[380px]">
+                            <div className="flex-1 p-3 overflow-y-auto space-y-3 bg-black/[0.01] dark:bg-white/[0.02]">
+                              {liveChats.length === 0 ? (
+                                <div className="h-full flex items-center justify-center text-center text-[#6e6e73] dark:text-white/35 text-[11px] font-medium">Start the discussion!</div>
+                              ) : liveChats.map((chat) => {
+                                const isMe = chat.senderId === user.id;
+                                const isStaff = chat.senderRole === "lecturer";
+                                return (
+                                  <div key={chat.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
+                                    <UserAvatar userId={chat.senderId} role={isStaff ? "lecturer" : "student"} size={26} initials={chat.senderName} className="shrink-0" />
+                                    <div className={`max-w-[75%] flex flex-col gap-0.5 ${isMe ? "items-end" : "items-start"}`}>
+                                      <span className={`text-[11px] font-bold font-mono uppercase tracking-wide ${isStaff ? "text-amber-600 dark:text-amber-500" : "text-[#6e6e73] dark:text-white/40"}`}>{chat.senderName}{isStaff && " · Staff"}</span>
+                                      <div className={`px-3 py-2 rounded-2xl text-[12px] break-words ${isMe ? "bg-emerald-700 text-white rounded-br-md" : isStaff ? "bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/30 text-slate-800 dark:text-slate-200 rounded-bl-md" : "bg-[#f0f0f0] dark:bg-white/[0.07] text-[#1d1d1f] dark:text-white/85 rounded-bl-md"}`}>{chat.message}</div>
+                                      <span className="text-[8.5px] text-[#6e6e73] dark:text-white/30 font-mono">{new Date(chat.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              <div ref={chatEndRef} />
+                            </div>
+                            <form onSubmit={handleSendChatMessage} className="p-2.5 border-t border-black/[0.06] dark:border-white/[0.06] flex gap-2 bg-[#ffffff] dark:bg-[#1c1c1e]">
+                              <input type="text" required value={chatMessage} onChange={e => setChatMessage(e.target.value)} placeholder="Type a message..."
+                                className="flex-1 px-3 py-2.5 bg-black/[0.04] dark:bg-white/[0.07] border border-black/[0.09] dark:border-white/[0.10] rounded-[10px] text-[12.5px] text-[#1d1d1f] dark:text-white/90 placeholder-[#6e6e73] dark:placeholder-white/30 outline-none focus:border-emerald-500/60 transition" />
+                              <button type="submit" disabled={isSendingChat} className="flex items-center justify-center w-9 h-9 rounded-[10px] bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 transition flex-shrink-0">
+                                <Send className="h-3.5 w-3.5 text-white" />
+                              </button>
+                            </form>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* ── EXAMS TAB ── */}
+          {activeTab === "exams" && (
+            <div className="space-y-5">
+              {!activeExam ? (
+                <motion.div className="apple-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 280, damping: 26 }}>
+                  <div className="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06]">
+                    <h2 className="apple-title">Written Examinations</h2>
+                    <p className="apple-subtitle">Read each question carefully and type your answers. The AI will grade your submission.</p>
+                  </div>
+                  <div className="p-5">
+                    {exams.length === 0 ? (
+                      <div className="apple-empty-state">
+                        <div className="apple-empty-state__icon">
+                          <Upload className="h-6 w-6 text-[#8e8e93] dark:text-white/30" />
+                        </div>
+                        <p className="apple-empty-state__title">No exams yet</p>
+                        <p className="apple-empty-state__body">Written examinations will appear here when your lecturer activates them.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {exams.map(exam => {
+                          const examPeriod = getPeriodStatus(exam.availableFrom, exam.availableUntil);
+                          const examExpired = examPeriod.type === "expired";
+                          const examUpcoming = examPeriod.type === "upcoming";
+                          const examBlocked = examExpired || examUpcoming;
+                          void periodTick;
+                          return (
+                            <div key={exam.id} className={`p-4 border rounded-[12px] bg-black/[0.01] dark:bg-white/[0.02] transition-all duration-200 flex items-center justify-between gap-3 ${highlightId === exam.id ? "border-emerald-400 dark:border-emerald-500 ring-2 ring-emerald-400/30" : examBlocked ? "border-black/[0.07] dark:border-white/[0.07] opacity-70" : "border-black/[0.07] dark:border-white/[0.07] hover:border-emerald-300/60 dark:hover:border-emerald-700/40 hover:shadow-sm"}`}>
+                            <button
+                              onClick={examBlocked ? undefined : async () => { setActiveExam(exam); setMySubmission(null); await fetchMySubmission(exam.id); }}
+                              disabled={examBlocked}
+                              className={`flex-1 text-left ${examBlocked ? "cursor-not-allowed" : "cursor-pointer"}`}>
+                              <div className="min-w-0">
+                                <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/90">{exam.title}</p>
+                                <p className="text-[11px] text-[#6e6e73] dark:text-white/40 mt-0.5">{exam.course?.code} / {exam.course?.title}</p>
+                                {!examExpired && !examUpcoming && examPeriod.until && exam.isOpen && (
+                                  <div className="flex items-center gap-1 text-[10.5px] font-mono text-amber-600 dark:text-amber-400 font-semibold mt-1">
+                                    <Clock className="h-3 w-3" />
+                                    Closes in {formatCountdown(examPeriod.until)}
+                                  </div>
+                                )}
+                                {examUpcoming && examPeriod.from && (
+                                  <div className="text-[10.5px] font-mono text-blue-600 dark:text-blue-400 font-semibold mt-1">
+                                    Opens {examPeriod.from.toLocaleString()}
+                                  </div>
+                                )}
+                              </div>
+                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border flex-shrink-0 ${
+                                examExpired
+                                  ? "bg-black/[0.04] dark:bg-white/[0.04] text-[#6e6e73] dark:text-white/40 border-black/[0.07] dark:border-white/[0.07]"
+                                  : examUpcoming
+                                  ? "bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900/30"
+                                  : exam.isOpen
+                                  ? "bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/30"
+                                  : "bg-black/[0.04] dark:bg-white/[0.04] text-[#6e6e73] dark:text-white/40 border-black/[0.07] dark:border-white/[0.07]"
+                              }`}>
+                                {examExpired ? "Expired" : examUpcoming ? "Upcoming" : exam.isOpen ? "Open" : "Closed"}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              title="Share on WhatsApp"
+                              onClick={() => shareWhatsApp("exam", exam.id, exam.title, exam.course?.code)}
+                              className="p-1.5 rounded-lg text-[#8e8e93] dark:text-white/30 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition cursor-pointer flex-shrink-0"
+                            >
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                            </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ) : mySubmission ? (
+                <div className="apple-card">
+                  <div className="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06]">
+                    <button onClick={() => { setActiveExam(null); setMySubmission(null); }} className="flex items-center gap-1.5 text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1.5 cursor-pointer"><ArrowLeft className="h-3.5 w-3.5" /> Back to Exams</button>
+                    <h2 className="apple-title">{activeExam.title}: Result</h2>
+                  </div>
+                  <div className="p-5 space-y-5">
+                    {mySubmission.isGraded ? (
+                      <div className="space-y-4">
+                        {(() => {
+                          const pct = mySubmission.totalMarks ? ((mySubmission.score ?? 0) / mySubmission.totalMarks) * 100 : (mySubmission.score ?? 0);
+                          const pass = pct >= 50;
+                          return (
+                            <div className={`rounded-[12px] p-6 text-center border ${pass ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30" : "bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-900/30"}`}>
+                              <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40 mb-1">Your Score</p>
+                              {mySubmission.totalMarks ? (
+                                <>
+                                  <p className={`text-5xl font-black ${pass ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{mySubmission.score?.toFixed(1)}</p>
+                                  <p className={`text-[15px] font-semibold ${pass ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>out of {mySubmission.totalMarks} marks</p>
+                                </>
+                              ) : (
+                                <p className={`text-5xl font-black ${pass ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{mySubmission.score?.toFixed(1)}%</p>
+                              )}
+                              <p className={`text-[13px] font-semibold mt-2 ${pass ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{pass ? "Passed" : "Failed"}</p>
+                            </div>
+                          );
+                        })()}
+                        {mySubmission.feedback && (
+                          <div>
+                            <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40 mb-2">AI Feedback</p>
+                            <p className="text-[13px] text-[#1d1d1f] dark:text-white/80 leading-relaxed bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[10px] p-4">{mySubmission.feedback}</p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40 mb-2">Your Submitted Answers</p>
+                          <pre className="text-[12px] text-[#3a3a3c] dark:text-white/60 bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[10px] p-4 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">{mySubmission.answersText}</pre>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-10 text-center">
+                        <Loader2 className="h-8 w-8 text-emerald-400 animate-spin mx-auto mb-3" />
+                        <p className="text-[13px] font-semibold text-[#3a3a3c] dark:text-white/70">Submitted: awaiting AI grading</p>
+                        <p className="text-[12px] text-[#6e6e73] dark:text-white/40 mt-1">Your lecturer will trigger grading once all students have submitted.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="apple-card">
+                  <div className="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06]">
+                    <button onClick={() => { setActiveExam(null); setExamAnswers(""); setExamError(null); }} className="flex items-center gap-1.5 text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1.5 cursor-pointer"><ArrowLeft className="h-3.5 w-3.5" /> Back to Exams</button>
+                    <h2 className="apple-title">{activeExam.title}</h2>
+                    <p className="text-[11px] text-[#6e6e73] dark:text-white/40 mt-0.5">
+                      {activeExam.course?.code} · {
+                        getPeriodStatus(activeExam.availableFrom, activeExam.availableUntil).type === "expired"
+                          ? "Submission period ended"
+                          : activeExam.isOpen ? "Open for submission" : "Closed"
+                      }
+                    </p>
+                  </div>
+                  <div className="p-5 space-y-5">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40 mb-2">Exam Questions</p>
+                      <SecureContent studentName={user.fullName} regNumber={user.regNumber} mode="dark" className="rounded-[10px]">
+                        <pre className="text-[13px] text-[#1d1d1f] dark:text-white/80 bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[10px] p-4 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">{activeExam.questionsText}</pre>
+                      </SecureContent>
+                    </div>
+
+                    {(() => {
+                      const activePeriod = getPeriodStatus(activeExam.availableFrom, activeExam.availableUntil);
+                      const isAccessible = activeExam.isOpen && activePeriod.type !== "expired" && activePeriod.type !== "upcoming";
+                      return isAccessible ? (
+                        <div className="space-y-3">
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40">Your Answers</p>
+                          {activePeriod.until && (
+                            <div className="flex items-center gap-1.5 text-[12px] font-mono text-amber-600 dark:text-amber-400 font-semibold">
+                              <Clock className="h-3.5 w-3.5" />
+                              Submission closes in {formatCountdown(activePeriod.until)}
+                            </div>
+                          )}
+                          <textarea
+                            rows={12}
+                            value={examAnswers}
+                            onChange={e => setExamAnswers(e.target.value)}
+                            placeholder={"Type your answers here. For example:\n\n1. [Your answer to question 1]\n\n2. [Your answer to question 2]\n\netc."}
+                            className="w-full px-3.5 py-2.5 rounded-[10px] text-[13.5px] bg-black/[0.04] dark:bg-white/[0.07] border border-black/[0.09] dark:border-white/[0.10] text-[#1d1d1f] dark:text-white/90 placeholder-[#6e6e73] dark:placeholder-white/30 outline-none focus:border-emerald-500/60 dark:focus:border-emerald-500/50 transition resize-none leading-relaxed"
+                          />
+                          {examError && <p className="text-[12px] text-red-500 font-medium">{examError}</p>}
+                          <button onClick={handleExamSubmit} disabled={isSubmittingExam} className="btn-gradient disabled:opacity-60 flex items-center justify-center gap-2">
+                            {isSubmittingExam ? <><Loader2 className="h-4 w-4 animate-spin" />Submitting…</> : "Submit Answers"}
+                          </button>
+                          <p className="text-[11px] text-[#6e6e73] dark:text-white/40 text-center">Once submitted you cannot change your answers. The AI will grade your submission after the exam closes.</p>
+                        </div>
+                      ) : (
+                        <div className="py-8 text-center border border-dashed border-black/[0.10] dark:border-white/[0.10] rounded-[12px]">
+                          <p className="text-[13px] font-semibold text-[#6e6e73] dark:text-white/50">
+                            {activePeriod.type === "expired"
+                              ? "The submission period for this exam has ended."
+                              : "This exam is closed for submissions."}
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── ASSIGNMENTS TAB ── */}
+          {activeTab === "assignments" && (
+            <div className="space-y-5">
+              {!activeAssignment ? (
+                <motion.div className="apple-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 280, damping: 26 }}>
+                  <div className="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06]">
+                    <h2 className="apple-title">Assignments</h2>
+                    <p className="apple-subtitle">Read each assignment carefully and type your answers before the due date.</p>
+                  </div>
+                  <div className="p-5">
+                    {assignments.length === 0 ? (
+                      <div className="apple-empty-state">
+                        <div className="apple-empty-state__icon"><Pencil className="h-6 w-6 text-[#8e8e93] dark:text-white/30" /></div>
+                        <p className="apple-empty-state__title">No assignments yet</p>
+                        <p className="apple-empty-state__body">Assignments from your lecturers will appear here.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {assignments.map(a => {
+                          const isOverdue = a.dueDate && new Date() > new Date(a.dueDate);
+                          const blocked = !a.isOpen || isOverdue;
+                          return (
+                            <div key={a.id} className={`p-4 border rounded-[12px] bg-black/[0.01] dark:bg-white/[0.02] transition-all duration-200 flex items-center justify-between gap-3 ${highlightId === a.id ? "border-emerald-400 dark:border-emerald-500 ring-2 ring-emerald-400/30" : blocked ? "border-black/[0.07] dark:border-white/[0.07] opacity-70" : "border-black/[0.07] dark:border-white/[0.07] hover:border-emerald-300/60 dark:hover:border-emerald-700/40 hover:shadow-sm"}`}>
+                              <button
+                                onClick={blocked ? undefined : async () => { setActiveAssignment(a); setMyAssignmentSubmission(null); await fetchMyAssignmentSubmission(a.id); }}
+                                disabled={blocked}
+                                className={`flex-1 text-left ${blocked ? "cursor-not-allowed" : "cursor-pointer"}`}>
+                                <div className="min-w-0">
+                                  <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/90">{a.title}</p>
+                                  <p className="text-[11px] text-[#6e6e73] dark:text-white/40 mt-0.5">{a.course?.code} / {a.course?.title}</p>
+                                  {a.description && <p className="text-[11px] text-[#6e6e73] dark:text-white/50 mt-0.5 italic">{a.description}</p>}
+                                  {a.dueDate && (
+                                    <div className={`flex items-center gap-1 text-[10.5px] font-mono font-semibold mt-1 ${isOverdue ? "text-red-500" : "text-amber-600 dark:text-amber-400"}`}>
+                                      <Clock className="h-3 w-3" />
+                                      {isOverdue ? "Past due" : `Due ${new Date(a.dueDate).toLocaleString()}`}
+                                    </div>
+                                  )}
+                                </div>
+                                <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border flex-shrink-0 ${
+                                  isOverdue
+                                    ? "bg-black/[0.04] dark:bg-white/[0.04] text-[#6e6e73] dark:text-white/40 border-black/[0.07] dark:border-white/[0.07]"
+                                    : a.isOpen
+                                    ? "bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/30"
+                                    : "bg-black/[0.04] dark:bg-white/[0.04] text-[#6e6e73] dark:text-white/40 border-black/[0.07] dark:border-white/[0.07]"
+                                }`}>
+                                  {isOverdue ? "Overdue" : a.isOpen ? "Open" : "Closed"}
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                title="Share on WhatsApp"
+                                onClick={() => shareWhatsApp("assignment", a.id, a.title, a.course?.code)}
+                                className="p-1.5 rounded-lg text-[#8e8e93] dark:text-white/30 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition cursor-pointer flex-shrink-0"
+                              >
+                                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ) : myAssignmentSubmission ? (
+                <div className="apple-card">
+                  <div className="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06]">
+                    <button onClick={() => { setActiveAssignment(null); setMyAssignmentSubmission(null); }} className="flex items-center gap-1.5 text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1.5 cursor-pointer"><ArrowLeft className="h-3.5 w-3.5" /> Back to Assignments</button>
+                    <h2 className="apple-title">{activeAssignment.title}: Submitted</h2>
+                  </div>
+                  <div className="p-5 space-y-5">
+                    {myAssignmentSubmission.isGraded ? (
+                      <div className="space-y-4">
+                        {(() => {
+                          const pct = myAssignmentSubmission.totalMarks ? ((myAssignmentSubmission.score ?? 0) / myAssignmentSubmission.totalMarks) * 100 : (myAssignmentSubmission.score ?? 0);
+                          const pass = pct >= 50;
+                          return (
+                            <div className={`rounded-[12px] p-6 text-center border ${pass ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30" : "bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-900/30"}`}>
+                              <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40 mb-1">Your Score</p>
+                              {myAssignmentSubmission.totalMarks ? (
+                                <>
+                                  <p className={`text-5xl font-black ${pass ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{myAssignmentSubmission.score?.toFixed(1)}</p>
+                                  <p className={`text-[15px] font-semibold ${pass ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>out of {myAssignmentSubmission.totalMarks} marks</p>
+                                </>
+                              ) : (
+                                <p className={`text-5xl font-black ${pass ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{myAssignmentSubmission.score?.toFixed(1)}%</p>
+                              )}
+                              <p className={`text-[13px] font-semibold mt-2 ${pass ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{pass ? "Passed" : "Failed"}</p>
+                            </div>
+                          );
+                        })()}
+                        {myAssignmentSubmission.feedback && (
+                          <div>
+                            <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40 mb-2">AI Feedback</p>
+                            <p className="text-[13px] text-[#1d1d1f] dark:text-white/80 leading-relaxed bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[10px] p-4">{myAssignmentSubmission.feedback}</p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40 mb-2">Your Submitted Answers</p>
+                          <pre className="text-[12px] text-[#3a3a3c] dark:text-white/60 bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[10px] p-4 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">{myAssignmentSubmission.answersText}</pre>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center">
+                        <CheckCircle className="h-10 w-10 text-emerald-400 mx-auto mb-3" />
+                        <p className="text-[13px] font-semibold text-[#3a3a3c] dark:text-white/70">Assignment submitted — awaiting grading</p>
+                        <p className="text-[12px] text-[#6e6e73] dark:text-white/40 mt-1">Your lecturer will grade your submission with AI.</p>
+                      </div>
+                    )}
+                    {/* Attachment badge */}
+                    {myAssignmentSubmission.attachmentName && (
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40 mb-2">Attached File</p>
+                        {myAssignmentSubmission.attachmentData ? (
+                          <a href={myAssignmentSubmission.attachmentData} download={myAssignmentSubmission.attachmentName}
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-[10px] bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/40 text-blue-700 dark:text-blue-400 text-[12.5px] font-semibold hover:bg-blue-100 dark:hover:bg-blue-950/30 transition">
+                            <Download className="h-3.5 w-3.5" />
+                            {myAssignmentSubmission.attachmentName}
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-2 px-3 py-2 rounded-[10px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.07] dark:border-white/[0.07] text-[#3a3a3c] dark:text-white/60 text-[12.5px] font-medium">
+                            <FileText className="h-3.5 w-3.5" strokeWidth={1.6} />
+                            {myAssignmentSubmission.attachmentName}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="apple-card">
+                  <div className="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06]">
+                    <button onClick={() => { setActiveAssignment(null); setAssignmentAnswers(""); setAssignmentError(null); }} className="flex items-center gap-1.5 text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1.5 cursor-pointer"><ArrowLeft className="h-3.5 w-3.5" /> Back to Assignments</button>
+                    <h2 className="apple-title">{activeAssignment.title}</h2>
+                    <p className="text-[11px] text-[#6e6e73] dark:text-white/40 mt-0.5">
+                      {activeAssignment.course?.code}{activeAssignment.dueDate && ` · Due ${new Date(activeAssignment.dueDate).toLocaleString()}`}
+                    </p>
+                  </div>
+                  <div className="p-5 space-y-5">
+                    {activeAssignment.description && (
+                      <p className="text-[13px] text-[#3a3a3c] dark:text-white/70 italic">{activeAssignment.description}</p>
+                    )}
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40 mb-2">Assignment Questions</p>
+                      <SecureContent studentName={user.fullName} regNumber={user.regNumber} mode="dark" className="rounded-[10px]">
+                        <pre className="text-[13px] text-[#1d1d1f] dark:text-white/80 bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[10px] p-4 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">{activeAssignment.questionsText}</pre>
+                      </SecureContent>
+                    </div>
+                    <div className="space-y-3">
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40">Your Answers</p>
+                      <textarea
+                        rows={10}
+                        value={assignmentAnswers}
+                        onChange={e => setAssignmentAnswers(e.target.value)}
+                        placeholder={"Type your answers here. For example:\n\n1. [Your answer to question 1]\n\n2. [Your answer to question 2]\n\netc."}
+                        className="w-full px-3.5 py-2.5 rounded-[10px] text-[13.5px] bg-black/[0.04] dark:bg-white/[0.07] border border-black/[0.09] dark:border-white/[0.10] text-[#1d1d1f] dark:text-white/90 placeholder-[#6e6e73] dark:placeholder-white/30 outline-none focus:border-emerald-500/60 dark:focus:border-emerald-500/50 transition resize-none leading-relaxed"
+                      />
+
+                      {/* File attachment */}
+                      <div className="border-2 border-dashed border-black/[0.09] dark:border-white/[0.09] rounded-[12px] p-4">
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40 mb-3">Attach a File <span className="normal-case font-normal text-[#8e8e93] dark:text-white/30">(optional — PDF, images, Word, max 8 MB)</span></p>
+                        {assignmentFile ? (
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-[10px] bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40">
+                              <FileText className="h-4 w-4 text-emerald-500 flex-shrink-0" strokeWidth={1.6} />
+                              <span className="text-[12.5px] font-semibold text-emerald-700 dark:text-emerald-400 truncate">{assignmentFile.name}</span>
+                              <span className="text-[10.5px] text-[#6e6e73] dark:text-white/40 flex-shrink-0">({(assignmentFile.size / 1024).toFixed(0)} KB)</span>
+                            </div>
+                            <button type="button" onClick={() => { setAssignmentFile(null); setAssignmentFileData(null); }}
+                              className="p-2 rounded-[8px] hover:bg-red-50 dark:hover:bg-red-950/20 text-[#8e8e93] hover:text-red-500 transition cursor-pointer">
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center gap-2 cursor-pointer">
+                            <div className="w-10 h-10 rounded-full bg-black/[0.04] dark:bg-white/[0.06] flex items-center justify-center">
+                              <Upload className="h-4 w-4 text-[#6e6e73] dark:text-white/40" strokeWidth={1.6} />
+                            </div>
+                            <span className="text-[12.5px] text-[#3a3a3c] dark:text-white/65 font-medium">Click to choose a file</span>
+                            <input
+                              type="file"
+                              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp,.txt"
+                              className="hidden"
+                              onChange={e => {
+                                const f = e.target.files?.[0];
+                                if (!f) return;
+                                if (f.size > 8 * 1024 * 1024) { setAssignmentError("File exceeds 8 MB limit."); return; }
+                                setAssignmentFile(f);
+                                const reader = new FileReader();
+                                reader.onload = ev => setAssignmentFileData(ev.target?.result as string ?? null);
+                                reader.readAsDataURL(f);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+
+                      {assignmentError && <p className="text-[12px] text-red-500 font-medium">{assignmentError}</p>}
+                      <button onClick={handleAssignmentSubmit} disabled={isSubmittingAssignment} className="btn-gradient disabled:opacity-60 flex items-center justify-center gap-2">
+                        {isSubmittingAssignment ? <><Loader2 className="h-4 w-4 animate-spin" />Submitting…</> : "Submit Assignment"}
+                      </button>
+                      <p className="text-[11px] text-[#6e6e73] dark:text-white/40 text-center">Once submitted you cannot change your answers.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── GRADES TAB ── */}
+          {activeTab === "history" && (() => {
+            // Build unified grade rows
+            const gradeLetter = (pct: number) => {
+              if (pct >= 70) return { letter: "A", cls: "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40" };
+              if (pct >= 60) return { letter: "B", cls: "text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/40" };
+              if (pct >= 50) return { letter: "C", cls: "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/40" };
+              if (pct >= 40) return { letter: "D", cls: "text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800/40" };
+              return { letter: "F", cls: "text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/40" };
+            };
+
+            const allRows: Array<{
+              id: string; type: "quiz" | "exam" | "assignment"; title: string; courseCode: string;
+              date: string; pct: number | null; scoreLabel: string; isGraded: boolean; feedback?: string;
+            }> = [
+              ...attemptsList.filter(a => a.isCompleted).map(a => ({
+                id: `q_${a.id}`, type: "quiz" as const,
+                title: a.quiz?.title || "Quiz",
+                courseCode: a.quiz?.course?.code || "",
+                date: a.submittedAt ? new Date(a.submittedAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "—",
+                pct: a.score ?? 0,
+                scoreLabel: `${(a.score ?? 0).toFixed(1)}%`,
+                isGraded: true,
+              })),
+              ...examSubmissions.map(s => {
+                const pct = s.totalMarks ? (s.score / s.totalMarks) * 100 : (s.score ?? 0);
+                return {
+                  id: `e_${s.id}`, type: "exam" as const,
+                  title: s.exam?.title || "Exam",
+                  courseCode: s.exam?.course?.code || "",
+                  date: new Date(s.submittedAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }),
+                  pct: s.isGraded ? pct : null,
+                  scoreLabel: s.isGraded ? (s.totalMarks ? `${s.score?.toFixed(1)} / ${s.totalMarks}` : `${pct.toFixed(1)}%`) : "Pending",
+                  isGraded: s.isGraded,
+                  feedback: s.feedback,
+                };
+              }),
+              ...assignmentSubmissionHistory.map(s => {
+                const pct = s.totalMarks ? (s.score / s.totalMarks) * 100 : (s.score ?? 0);
+                return {
+                  id: `a_${s.id}`, type: "assignment" as const,
+                  title: s.assignment?.title || "Assignment",
+                  courseCode: s.assignment?.course?.code || "",
+                  date: new Date(s.submittedAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }),
+                  pct: s.isGraded ? pct : null,
+                  scoreLabel: s.isGraded ? (s.totalMarks ? `${s.score?.toFixed(1)} / ${s.totalMarks}` : `${pct.toFixed(1)}%`) : "Pending",
+                  isGraded: s.isGraded,
+                  feedback: s.feedback,
+                };
+              }),
+            ];
+
+            const graded = allRows.filter(r => r.isGraded && r.pct !== null);
+            const avgPct = graded.length ? graded.reduce((s, r) => s + r.pct!, 0) / graded.length : null;
+            const passCount = graded.filter(r => r.pct! >= 50).length;
+            const overallLetter = avgPct !== null ? gradeLetter(avgPct) : null;
+
+            const filtered = gradeFilter === "all" ? allRows : allRows.filter(r => r.type === gradeFilter);
+
+            const typeStyle = (t: string) =>
+              t === "quiz" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+              : t === "exam" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
+              : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400";
+
+            return (
+              <motion.div className="space-y-4" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 280, damping: 26 }}>
+
+                {/* Stats header */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: "Overall Average", value: avgPct !== null ? `${avgPct.toFixed(1)}%` : "—", sub: overallLetter ? `Grade ${overallLetter.letter}` : "No grades yet", accent: "emerald" },
+                    { label: "Total Assessments", value: String(allRows.length), sub: `${graded.length} graded`, accent: "blue" },
+                    { label: "Passed", value: String(passCount), sub: graded.length ? `${((passCount / graded.length) * 100).toFixed(0)}% pass rate` : "—", accent: "green" },
+                    { label: "Pending", value: String(allRows.filter(r => !r.isGraded).length), sub: "awaiting grade", accent: "amber" },
+                  ].map(s => (
+                    <div key={s.label} className="apple-card px-4 py-4">
+                      <p className="text-[10px] font-bold text-[#6e6e73] dark:text-white/35 uppercase tracking-widest mb-1">{s.label}</p>
+                      <p className="text-[22px] font-bold text-[#1d1d1f] dark:text-white/90 leading-none tracking-tight">{s.value}</p>
+                      <p className="text-[11px] text-[#8e8e93] dark:text-white/30 mt-1">{s.sub}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Achievements */}
+                {(() => {
+                  const badges: Array<{ icon: string; label: string; earned: boolean }> = [
+                    { icon: "🎯", label: "First Quiz",    earned: attemptsList.filter(a => a.isCompleted).length >= 1 },
+                    { icon: "🔥", label: "On Fire",       earned: streak >= 5 },
+                    { icon: "⭐", label: "Perfect Score", earned: attemptsList.some(a => a.isCompleted && (a.score ?? 0) >= 100) },
+                    { icon: "📚", label: "Bookworm",      earned: bookmarkedNotes.size >= 3 },
+                    { icon: "🏆", label: "Top Scholar",   earned: avgPct !== null && avgPct >= 70 },
+                    { icon: "💪", label: "Hard Worker",   earned: allRows.length >= 5 },
+                  ];
+                  const earned = badges.filter(b => b.earned);
+                  if (earned.length === 0) return null;
+                  return (
+                    <div className="apple-card px-5 py-4">
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/35 mb-3">Achievements</p>
+                      <div className="flex flex-wrap gap-2">
+                        {badges.map(b => (
+                          <span key={b.label} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold border transition ${
+                            b.earned
+                              ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-400"
+                              : "bg-black/[0.02] dark:bg-white/[0.02] border-black/[0.06] dark:border-white/[0.05] text-[#c7c7cc] dark:text-white/20"
+                          }`}>
+                            <span className={b.earned ? "opacity-100" : "opacity-30 grayscale"}>{b.icon}</span>
+                            {b.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Grade letter banner (shown when graded) */}
+                {overallLetter && avgPct !== null && (
+                  <div className={`rounded-[14px] border px-5 py-4 flex items-center gap-4 ${overallLetter.cls}`}>
+                    <span className="text-[40px] font-black leading-none">{overallLetter.letter}</span>
+                    <div>
+                      <p className="text-[14px] font-bold leading-tight">Your current academic standing</p>
+                      <p className="text-[12px] opacity-75 mt-0.5">Based on {graded.length} graded assessment{graded.length !== 1 ? "s" : ""} · Overall {avgPct.toFixed(1)}%</p>
+                    </div>
+                    <div className="ml-auto hidden sm:block">
+                      <div className="w-28 h-2 rounded-full bg-current/20 overflow-hidden">
+                        <div className="h-full rounded-full bg-current transition-all" style={{ width: `${Math.min(avgPct, 100)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Trend chart — score over time for graded assessments */}
+                {graded.length >= 2 && (() => {
+                  const pts = graded.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                  const W = 340, H = 90, PAD = 12;
+                  const minP = 0, maxP = 100;
+                  const xStep = (W - PAD * 2) / (pts.length - 1);
+                  const toY = (p: number) => PAD + (1 - (p - minP) / (maxP - minP)) * (H - PAD * 2);
+                  const toX = (i: number) => PAD + i * xStep;
+                  const pathD = pts.map((p, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(p.pct ?? 0).toFixed(1)}`).join(" ");
+                  const fillD = `${pathD} L${toX(pts.length - 1).toFixed(1)},${(H - PAD).toFixed(1)} L${PAD},${(H - PAD).toFixed(1)} Z`;
+                  return (
+                    <div className="apple-card px-5 py-4">
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/35 mb-3">Score Trend</p>
+                      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none" style={{ height: 90 }}>
+                        {/* 50% line */}
+                        <line x1={PAD} y1={toY(50)} x2={W - PAD} y2={toY(50)} stroke="currentColor" strokeWidth="0.5" strokeDasharray="3,3" className="text-black/10 dark:text-white/10" />
+                        <defs>
+                          <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                            <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+                          </linearGradient>
+                        </defs>
+                        <path d={fillD} fill="url(#trendFill)" />
+                        <path d={pathD} fill="none" stroke="#10b981" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+                        {pts.map((p, i) => (
+                          <circle key={i} cx={toX(i)} cy={toY(p.pct ?? 0)} r="3" fill="#10b981" />
+                        ))}
+                      </svg>
+                      <div className="flex justify-between mt-1">
+                        <span className="text-[9.5px] text-[#8e8e93] dark:text-white/30 truncate max-w-[45%]">{pts[0].title}</span>
+                        <span className="text-[9.5px] text-[#8e8e93] dark:text-white/30 truncate max-w-[45%] text-right">{pts[pts.length - 1].title}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Filter pills + list */}
+                <div className="apple-card overflow-hidden">
+                  <div className="px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center gap-2 flex-wrap">
+                    <h2 className="apple-title flex-1">All Grades</h2>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const rows = allRows;
+                        const letterGrade = avgPct !== null ? gradeLetter(avgPct).letter : "—";
+                        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Grade Report — ${user.fullName}</title><style>
+                          body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;padding:32px;color:#1d1d1f;max-width:720px;margin:auto}
+                          h1{font-size:22px;font-weight:700;margin:0 0 4px}
+                          .sub{color:#6e6e73;font-size:13px;margin-bottom:24px}
+                          .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+                          .stat{border:1px solid #e5e5e5;border-radius:10px;padding:12px 14px}
+                          .stat-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8e8e93;margin-bottom:4px}
+                          .stat-value{font-size:20px;font-weight:700}
+                          table{width:100%;border-collapse:collapse;font-size:12.5px}
+                          th{text-align:left;padding:8px 10px;background:#f5f5f7;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#6e6e73}
+                          td{padding:9px 10px;border-bottom:1px solid #f0f0f0}
+                          .badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase}
+                          .quiz{background:#d1fae5;color:#065f46}.exam{background:#dbeafe;color:#1e3a8a}.assignment{background:#fef3c7;color:#92400e}
+                          .pass{color:#059669}.fail{color:#dc2626}.pending{color:#8e8e93}
+                          .footer{margin-top:32px;padding-top:16px;border-top:1px solid #e5e5e5;font-size:11px;color:#8e8e93}
+                          @media print{body{padding:24px}}
+                        </style></head><body>
+                          <h1>Academic Grade Report</h1>
+                          <div class="sub">${user.fullName} · ${user.regNumber} · ${user.department} · ${user.year} · Generated ${new Date().toLocaleDateString("en-US",{day:"numeric",month:"long",year:"numeric"})}</div>
+                          <div class="stats">
+                            <div class="stat"><div class="stat-label">Overall Average</div><div class="stat-value">${avgPct !== null ? avgPct.toFixed(1)+"%" : "—"}</div><div style="font-size:11px;color:#8e8e93;margin-top:2px">Grade ${letterGrade}</div></div>
+                            <div class="stat"><div class="stat-label">Total</div><div class="stat-value">${rows.length}</div><div style="font-size:11px;color:#8e8e93;margin-top:2px">${graded.length} graded</div></div>
+                            <div class="stat"><div class="stat-label">Passed</div><div class="stat-value">${passCount}</div><div style="font-size:11px;color:#8e8e93;margin-top:2px">${graded.length ? ((passCount/graded.length)*100).toFixed(0)+"% pass rate" : "—"}</div></div>
+                            <div class="stat"><div class="stat-label">Pending</div><div class="stat-value">${rows.filter(r=>!r.isGraded).length}</div><div style="font-size:11px;color:#8e8e93;margin-top:2px">awaiting grade</div></div>
+                          </div>
+                          <table><thead><tr><th>#</th><th>Assessment</th><th>Type</th><th>Course</th><th>Date</th><th>Score</th><th>Grade</th></tr></thead><tbody>
+                          ${rows.map((r,i)=>{
+                            const gl = r.pct !== null ? gradeLetter(r.pct) : null;
+                            return `<tr>
+                              <td style="color:#8e8e93">${i+1}</td>
+                              <td><strong>${r.title}</strong></td>
+                              <td><span class="badge ${r.type}">${r.type}</span></td>
+                              <td style="font-family:monospace;font-size:11px">${r.courseCode}</td>
+                              <td style="color:#6e6e73">${new Date(r.date).toLocaleDateString("en-US",{day:"numeric",month:"short",year:"numeric"})}</td>
+                              <td class="${!r.isGraded?"pending":r.pct!>=50?"pass":"fail"}">${r.isGraded?r.scoreLabel:"Pending"}</td>
+                              <td style="font-weight:700">${gl?gl.letter:"—"}</td>
+                            </tr>`;
+                          }).join("")}
+                          </tbody></table>
+                          <div class="footer">Mmuta · ${user.department} · This is an auto-generated grade summary and does not constitute an official transcript.</div>
+                        </body></html>`;
+                        const w = window.open("", "_blank");
+                        if (w) { w.document.write(html); w.document.close(); w.print(); }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-semibold border border-black/[0.10] dark:border-white/[0.10] text-[#3a3a3c] dark:text-white/60 hover:bg-black/[0.04] dark:hover:bg-white/[0.05] rounded-[8px] transition"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download Report
+                    </button>
+                    {(["all", "quiz", "exam", "assignment"] as const).map(f => (
+                      <button key={f} onClick={() => setGradeFilter(f)}
+                        className={`px-3 py-1 rounded-full text-[11px] font-semibold transition border ${
+                          gradeFilter === f
+                            ? "bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] border-transparent"
+                            : "text-[#6e6e73] dark:text-white/40 border-black/[0.08] dark:border-white/[0.08] hover:border-black/20 dark:hover:border-white/20"
+                        }`}>
+                        {f === "all" ? "All" : f === "quiz" ? "Quizzes" : f === "exam" ? "Exams" : "Assignments"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {filtered.length === 0 ? (
+                    <div className="apple-empty-state">
+                      <div className="apple-empty-state__icon"><ClipboardList className="h-6 w-6 text-[#8e8e93] dark:text-white/30" /></div>
+                      <p className="apple-empty-state__title">No grades here yet</p>
+                      <p className="apple-empty-state__body">Complete assessments to see your grades and AI feedback.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-black/[0.04] dark:divide-white/[0.04]">
+                      {filtered.map(row => {
+                        const gl = row.pct !== null ? gradeLetter(row.pct) : null;
+                        const isExpanded = expandedGradeId === row.id;
+                        return (
+                          <div key={row.id}>
+                            <button
+                              onClick={() => setExpandedGradeId(isExpanded ? null : row.id)}
+                              className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition text-left"
+                            >
+                              {/* Type icon */}
+                              <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${typeStyle(row.type)}`}>
+                                {row.type === "quiz" ? <Award className="h-3.5 w-3.5" strokeWidth={1.8} />
+                                  : row.type === "exam" ? <FileText className="h-3.5 w-3.5" strokeWidth={1.8} />
+                                  : <Pencil className="h-3.5 w-3.5" strokeWidth={1.8} />}
+                              </span>
+
+                              {/* Title + meta */}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/90 truncate leading-tight">{row.title}</p>
+                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                  {row.courseCode && (
+                                    <span className="text-[10px] font-bold font-mono text-emerald-600 dark:text-emerald-400 uppercase">{row.courseCode}</span>
+                                  )}
+                                  <span className={`text-[9.5px] font-bold uppercase px-1.5 py-0.5 rounded-[5px] ${typeStyle(row.type)}`}>
+                                    {row.type}
+                                  </span>
+                                  <span className="text-[10.5px] text-[#8e8e93] dark:text-white/30">{row.date}</span>
+                                </div>
+                              </div>
+
+                              {/* Score + grade letter */}
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {row.isGraded && gl ? (
+                                  <>
+                                    <span className="text-[11.5px] font-mono font-bold text-[#6e6e73] dark:text-white/50">{row.scoreLabel}</span>
+                                    <span className={`w-8 h-8 rounded-full border-[2px] flex items-center justify-center text-[13px] font-black ${gl.cls}`}>
+                                      {gl.letter}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/30">
+                                    <Loader2 className="h-3 w-3 animate-spin" /> Pending
+                                  </span>
+                                )}
+                                <ChevronDown className={`h-3.5 w-3.5 text-[#8e8e93] dark:text-white/30 transition-transform ${isExpanded ? "rotate-180" : ""}`} strokeWidth={2} />
+                              </div>
+                            </button>
+
+                            {/* Expanded feedback */}
+                            <AnimatePresence>
+                              {isExpanded && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.22, ease: "easeInOut" }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="px-5 pb-4 pt-1 ml-10">
+                                    {/* Progress bar */}
+                                    {row.pct !== null && (
+                                      <div className="mb-3">
+                                        <div className="flex justify-between text-[10.5px] text-[#8e8e93] dark:text-white/35 mb-1">
+                                          <span>Score</span><span>{row.pct.toFixed(1)}%</span>
+                                        </div>
+                                        <div className="h-2 rounded-full bg-black/[0.06] dark:bg-white/[0.07] overflow-hidden">
+                                          <div
+                                            className={`h-full rounded-full transition-all ${row.pct >= 70 ? "bg-emerald-500" : row.pct >= 50 ? "bg-amber-500" : "bg-red-500"}`}
+                                            style={{ width: `${Math.min(row.pct, 100)}%` }}
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+                                    {row.feedback ? (
+                                      <div className="rounded-[10px] bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] p-3">
+                                        <p className="text-[10px] font-bold text-[#6e6e73] dark:text-white/35 uppercase tracking-widest mb-1.5">AI Feedback</p>
+                                        <p className="text-[12.5px] text-[#3a3a3c] dark:text-white/70 leading-relaxed">{row.feedback}</p>
+                                      </div>
+                                    ) : (
+                                      <p className="text-[12px] text-[#8e8e93] dark:text-white/30 italic">
+                                        {row.isGraded ? "No written feedback for this submission." : "Grade pending — check back after your lecturer runs AI grading."}
+                                      </p>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })()}
+
+          {/* ── CALENDAR TAB ── */}
+          {activeTab === "calendar" && <CalendarView token={token} />}
+
+          {/* ── DISCUSSIONS TAB ── */}
+          {activeTab === "discussions" && (
+            <DiscussionBoard token={token} userId={user.id} userRole="student" userName={user.fullName} courses={courses.map(c => ({ id: c.id, code: c.code, title: c.title }))} />
+          )}
+
+          </div>{/* /max-w-5xl */}
+        </main>
+      </div>
+
+      {/* ── MOBILE BOTTOM DOCK ── */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 px-3 pb-6 pt-2" aria-label="Main navigation">
+        <div className="apple-bottom-dock flex items-center justify-around h-[60px] px-1 overflow-x-auto scrollbar-hide gap-0.5">
+          {([
+            { id: "notes",         label: "Materials",  Icon: FileText       },
+            { id: "quizzes",       label: "Quizzes",    Icon: Award          },
+            { id: "history",       label: "Grades",     Icon: ClipboardList  },
+            { id: "calendar",      label: "Calendar",   Icon: Calendar       },
+            { id: "discussions",   label: "Chat",       Icon: MessageSquare  },
+          ] as const).map(({ id, label, Icon }) => {
+            const isActive = activeTab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className="flex flex-col items-center justify-center gap-[5px] min-w-[56px] min-h-[44px] px-1.5 rounded-[14px] transition-all flex-shrink-0"
+                style={{ transform: isActive ? "scale(1.06)" : "scale(1)", transition: "transform 220ms cubic-bezier(0.34,1.56,0.64,1)" }}
+              >
+                <Icon className={`h-5 w-5 transition-colors ${isActive ? "text-emerald-500" : "text-[#8e8e93]"}`} strokeWidth={isActive ? 2.2 : 1.6} />
+                <span className={`text-[9.5px] font-semibold tracking-[0.01em] transition-colors ${isActive ? "text-emerald-500" : "text-[#8e8e93]"}`}>
+                  {label}
+                </span>
+              </button>
+            );
+          })}
+          {/* More button opens full mobile sidebar */}
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            className="flex flex-col items-center justify-center gap-[5px] min-w-[56px] min-h-[44px] px-1.5 rounded-[14px] flex-shrink-0 text-[#8e8e93]"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <circle cx="5" cy="10" r="1.2" fill="currentColor" stroke="none" />
+              <circle cx="10" cy="10" r="1.2" fill="currentColor" stroke="none" />
+              <circle cx="15" cy="10" r="1.2" fill="currentColor" stroke="none" />
+            </svg>
+            <span className="text-[9.5px] font-semibold tracking-[0.01em]">More</span>
+          </button>
+        </div>
+      </nav>
+
+      <AvatarModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        token={token}
+        role="student"
+        userId={user.id}
+        userName={user.fullName}
+        onAvatarUpdated={() => setAvatarRefreshTrigger((prev) => prev + 1)}
+      />
+    </div>
+  );
+}
