@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   GraduationCap, BookOpen, ShieldAlert, ArrowRight,
   ClipboardCheck, ArrowLeft, KeyRound, HelpCircle,
-  CheckCircle, Sun, Moon, Eye, Shuffle, WifiOff, Shield, Timer, HardDrive,
+  CheckCircle, Sun, Moon, Eye, Shuffle, WifiOff, Shield, Timer, HardDrive, Hash,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { School } from "../types";
@@ -57,9 +57,12 @@ export default function LandingScreen({
   }, [barVisible]);
 
   /* ─── login state ────────────────────────────────────── */
-  const [selectedUser, setSelectedUser] = useState<"student" | "lecturer" | null>(null);
+  const [selectedUser, setSelectedUser] = useState<"student" | "lecturer" | "pin" | null>(null);
   const [mode, setMode]     = useState<"login" | "register" | "security-fix" | "forgot">("login");
   const [activeTab, setActiveTab] = useState<"student" | "lecturer">("student");
+
+  // PIN login state
+  const [pinValue, setPinValue] = useState("");
 
   // Multi-tenant: schools list + selected school
   const [schools, setSchools] = useState<School[]>([]);
@@ -255,9 +258,11 @@ export default function LandingScreen({
     } catch (err: any) { setError(err.message); } finally { setLoading(false); }
   };
 
-  const handleSelectUser = (type: "student" | "lecturer") => {
-    setSelectedUser(type); setActiveTab(type);
+  const handleSelectUser = (type: "student" | "lecturer" | "pin") => {
+    setSelectedUser(type);
+    if (type !== "pin") setActiveTab(type as "student" | "lecturer");
     setMode("login"); setError(null); setSuccess(null);
+    setPinValue("");
   };
 
   const handleBack = () => {
@@ -265,6 +270,18 @@ export default function LandingScreen({
     setShowSuperAdminLogin(false);
     setError(null); setSuccess(null);
     setStudentPassword("");
+    setPinValue("");
+  };
+
+  const handlePinLogin = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(null); setSuccess(null); setLoading(true);
+    try {
+      const res = await fetch("/api/auth/pin-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: pinValue.toUpperCase().trim() }) });
+      const data = await apiJSON(res);
+      if (!res.ok) { setError(data.error || "Invalid PIN"); setLoading(false); return; }
+      setSuccess("PIN accepted! Starting exam…");
+      setTimeout(() => onLoginSuccess(data.token, { id: data.token, role: "pin_candidate", examId: data.examId, label: data.label }), 500);
+    } catch { setError("Something went wrong. Please try again."); } finally { setLoading(false); }
   };
 
   /* ─── helpers ────────────────────────────────────────── */
@@ -300,6 +317,15 @@ export default function LandingScreen({
       gradient: "linear-gradient(145deg, #1e3a5f 0%, #2563eb 100%)",
       ring:     "rgba(96,165,250,0.50)",
       btn:      "bg-blue-600 hover:bg-blue-500 shadow-[0_0_24px_rgba(96,165,250,0.28)]",
+    },
+    {
+      id:       "pin" as const,
+      label:    "Write with PIN",
+      sub:      "Exam access code",
+      icon:     Hash,
+      gradient: "linear-gradient(145deg, #4a1d96 0%, #7c3aed 100%)",
+      ring:     "rgba(139,92,246,0.50)",
+      btn:      "bg-violet-600 hover:bg-violet-500 shadow-[0_0_24px_rgba(139,92,246,0.28)]",
     },
   ];
   const activeUser = USERS.find(u => u.id === selectedUser);
@@ -591,7 +617,7 @@ export default function LandingScreen({
                             className="h-2 w-2 rounded-full flex-shrink-0"
                             animate={{ scale: [1, 1.4, 1], opacity: [1, 0.6, 1] }}
                             transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-                            style={{ background: activeUser?.id === "student" ? "#10b981" : "#3b82f6", boxShadow: activeUser?.id === "student" ? "0 0 8px rgba(16,185,129,0.8)" : "0 0 8px rgba(59,130,246,0.8)" }}
+                            style={{ background: activeUser?.id === "student" ? "#10b981" : activeUser?.id === "pin" ? "#7c3aed" : "#3b82f6", boxShadow: activeUser?.id === "student" ? "0 0 8px rgba(16,185,129,0.8)" : activeUser?.id === "pin" ? "0 0 8px rgba(139,92,246,0.8)" : "0 0 8px rgba(59,130,246,0.8)" }}
                           />
                           <span className="text-white/60 text-[11px] font-bold uppercase tracking-[0.14em]">{activeUser?.label} Sign In</span>
                         </div>
@@ -869,6 +895,36 @@ export default function LandingScreen({
                                 {loading ? "Creating…" : "Register Staff Account"} {!loading && <ArrowRight className="h-4 w-4" />}
                               </button>
                               <button type="button" onClick={() => { setMode("login"); setError(null); }} className={link + " block text-center w-full"}>Already staff? Sign in</button>
+                            </motion.form>
+                          )}
+
+                          {/* PIN EXAM LOGIN */}
+                          {selectedUser === "pin" && (
+                            <motion.form key="pin-login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }} onSubmit={handlePinLogin} className="space-y-5">
+                              <div className="text-center space-y-1">
+                                <p className="text-[10.5px] font-bold text-violet-400/80 uppercase tracking-[0.16em] flex items-center justify-center gap-1.5">
+                                  <Hash className="h-3 w-3" /> Exam Access PIN
+                                </p>
+                                <p className="text-[12px] text-white/40 leading-relaxed">Enter the 8-character PIN provided by your institution to start your exam.</p>
+                              </div>
+                              <div>
+                                <label className={lbl}>Access PIN</label>
+                                <input
+                                  type="text"
+                                  required
+                                  minLength={8}
+                                  maxLength={8}
+                                  value={pinValue}
+                                  onChange={e => setPinValue(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                                  placeholder="ABCD1234"
+                                  className={inp + " font-mono text-center text-[20px] tracking-[0.25em] uppercase"}
+                                  autoFocus
+                                  autoComplete="off"
+                                />
+                              </div>
+                              <motion.button type="submit" disabled={loading || pinValue.length !== 8} whileTap={{ scale: 0.96 }} transition={{ type: "spring", stiffness: 500, damping: 20 }} className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-[14px] font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-[0_0_24px_rgba(139,92,246,0.28)]">
+                                {loading ? "Verifying…" : "Start Exam"} {!loading && <ArrowRight className="h-4 w-4" />}
+                              </motion.button>
                             </motion.form>
                           )}
 

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
+const ResultSlip = lazy(() => import("./ResultSlip"));
 import { BookOpen, Award, LogOut, FileText, ChevronRight, Play, Clock, AlertTriangle, CheckCircle, ShieldAlert, Send, Radio, Filter, Calendar, Sun, Moon, Camera, Upload, Loader2, ThumbsUp, ArrowLeft, Mic, Layers, BarChart2, MessageSquare, Users, X, ClipboardList, Trophy, Megaphone, TrendingUp, Bell, Pencil, ChevronDown, Download, Flame, Zap, Star, WifiOff } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 import CalendarView from "./CalendarView";
@@ -107,6 +108,9 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
   const [assignmentSubmissionHistory, setAssignmentSubmissionHistory] = useState<any[]>([]);
   const [gradeFilter, setGradeFilter] = useState<"all" | "quiz" | "exam" | "assignment">("all");
   const [expandedGradeId, setExpandedGradeId] = useState<string | null>(null);
+
+  // Result Slip modal state
+  const [resultSlipData, setResultSlipData] = useState<{ type: "exam" | "quiz"; data: any } | null>(null);
 
   // Deep-link: id of item to highlight after navigating to its tab
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -3144,6 +3148,25 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                                         {row.isGraded ? "No written feedback for this submission." : "Grade pending — check back after your lecturer runs AI grading."}
                                       </p>
                                     )}
+                                    {/* Result Slip button */}
+                                    {row.isGraded && (row.type === "quiz" || row.type === "exam") && (
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          const rawId = row.id.replace(/^[qea]_/, "");
+                                          const endpoint = row.type === "quiz"
+                                            ? `/api/results/quiz/${rawId}`
+                                            : `/api/results/exam/${rawId}`;
+                                          try {
+                                            const r = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } });
+                                            if (r.ok) setResultSlipData({ type: row.type === "quiz" ? "quiz" : "exam", data: await r.json() });
+                                          } catch {}
+                                        }}
+                                        className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-semibold border border-black/[0.09] dark:border-white/[0.09] text-[#3a3a3c] dark:text-white/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 hover:text-emerald-700 dark:hover:text-emerald-400 hover:border-emerald-200 dark:hover:border-emerald-800/40 rounded-[8px] transition cursor-pointer"
+                                      >
+                                        <FileText className="h-3.5 w-3.5" /> Result Slip
+                                      </button>
+                                    )}
                                   </div>
                                 </motion.div>
                               )}
@@ -3219,6 +3242,22 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
         userName={user.fullName}
         onAvatarUpdated={() => setAvatarRefreshTrigger((prev) => prev + 1)}
       />
+
+      {/* Result Slip Modal */}
+      {resultSlipData && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(8px)" }}
+          onClick={() => setResultSlipData(null)}>
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <Suspense fallback={<div className="bg-white rounded-2xl p-8 text-center text-slate-400">Loading…</div>}>
+              <ResultSlip
+                type={resultSlipData.type}
+                data={resultSlipData.data}
+                onClose={() => setResultSlipData(null)}
+              />
+            </Suspense>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

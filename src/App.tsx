@@ -6,6 +6,7 @@ import LecturerDashboard from "./components/LecturerDashboard";
 import SuperAdminDashboard from "./components/SuperAdminDashboard";
 import ForceChangePasswordScreen from "./components/ForceChangePasswordScreen";
 import DeepLinkPreview from "./components/DeepLinkPreview";
+import PinExamSession from "./components/PinExamSession";
 import { User } from "./types";
 import { motion, AnimatePresence } from "motion/react";
 import { ShieldAlert, Clock, LogOut } from "lucide-react";
@@ -198,6 +199,11 @@ export default function App() {
     return () => clearInterval(interval);
   }, [showSessionExpired]);
 
+  // If pin_candidate, go directly to the exam — no dashboard
+  if (!loading && token && user?.role === "pin_candidate" && user.examId) {
+    return <PinExamSession token={token} examId={user.examId} label={user.label || "Candidate"} onFinish={handleLogout} />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-emerald-50 via-white to-green-50/60 dark:from-[#010e07] dark:via-[#011208] dark:to-[#021a0d]">
@@ -319,6 +325,7 @@ export default function App() {
                 id: user.id,
                 name: user.name || "Dr. Charles Xavier",
                 email: user.email || "admin@school.edu.ng",
+                isAdmin: user.isAdmin,
               }}
               theme={theme}
               onToggleTheme={toggleTheme}

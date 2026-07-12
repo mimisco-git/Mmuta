@@ -678,6 +678,7 @@ app.post("/api/auth/lecturer-register", authLimiter, async (req, res) => {
         email: lecturer.email,
         role: "lecturer",
         schoolId: lecturer.schoolId,
+        isAdmin: lecturer.isAdmin,
       },
       JWT_SECRET,
       { expiresIn: "8h" }
@@ -691,6 +692,7 @@ app.post("/api/auth/lecturer-register", authLimiter, async (req, res) => {
         email: lecturer.email,
         role: "lecturer",
         schoolId: lecturer.schoolId,
+        isAdmin: lecturer.isAdmin,
       },
     });
   } catch (error: any) {
@@ -737,6 +739,7 @@ app.post("/api/auth/lecturer-login", authLimiter, async (req, res) => {
         email: lecturer.email,
         role: "lecturer",
         schoolId: lecturer.schoolId,
+        isAdmin: lecturer.isAdmin,
       },
       JWT_SECRET,
       { expiresIn: "8h" }
@@ -750,6 +753,7 @@ app.post("/api/auth/lecturer-login", authLimiter, async (req, res) => {
         email: lecturer.email,
         role: "lecturer",
         schoolId: lecturer.schoolId,
+        isAdmin: lecturer.isAdmin,
       },
     });
   } catch (error: any) {
@@ -4129,6 +4133,328 @@ app.delete("/api/question-bank/:id", authenticateToken, async (req: any, res) =>
     await prisma.bankQuestion.delete({ where: { id: req.params.id } });
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: "Failed to delete" }); }
+});
+
+// ── School Admin middleware ────────────────────────────────────
+function requireSchoolAdmin(req: any, res: any, next: any) {
+  if (req.user?.role !== "lecturer" || !req.user?.isAdmin)
+    return res.status(403).json({ error: "School admin access required" });
+  next();
+}
+
+// ── School Admin Endpoints ────────────────────────────────────
+
+app.get("/api/school-admin/overview", authenticateToken, requireSchoolAdmin, async (req: any, res) => {
+  try {
+    const schoolId = req.user.schoolId;
+    const [school, studentCount, lecturerCount, courseCount, examCount] = await Promise.all([
+      prisma.school.findUnique({ where: { id: schoolId }, select: { id: true, name: true, code: true } }),
+      prisma.student.count({ where: { schoolId } }),
+      prisma.lecturer.count({ where: { schoolId } }),
+      prisma.course.count({ where: { schoolId } }),
+      prisma.exam.count({ where: { course: { schoolId } } }),
+    ]);
+    return res.json({ school, studentCount, lecturerCount, courseCount, examCount });
+  } catch { return res.status(500).json({ error: "Failed to fetch overview" }); }
+});
+
+app.get("/api/school-admin/students", authenticateToken, requireSchoolAdmin, async (req: any, res) => {
+  try {
+    const schoolId = req.user.schoolId;
+    const page = parseInt(String(req.query.page || "1"), 10);
+    const limit = parseInt(String(req.query.limit || "50"), 10);
+    const search = String(req.query.search || "").trim().toLowerCase();
+    const skip = (page - 1) * limit;
+    const where: any = { schoolId };
+    if (search) {
+      where.OR = [
+        { fullName: { contains: search } },
+        { regNumber: { contains: search } },
+        { department: { contains: search } },
+      ];
+    }
+    const [students, total] = await Promise.all([
+      prisma.student.findMany({ where, skip, take: limit, orderBy: { fullName: "asc" }, select: { id: true, fullName: true, regNumber: true, department: true, year: true, email: true, mustChangePassword: true } }),
+      prisma.student.count({ where }),
+    ]);
+    return res.json({ students, total, page, limit });
+  } catch { return res.status(500).json({ error: "Failed to fetch students" }); }
+});
+
+app.post("/api/school-admin/students", authenticateToken, requireSchoolAdmin, async (req: any, res) => {
+  try {
+    const schoolId = req.user.schoolId;
+    const { fullName, regNumber, email, department, year, password } = req.body;
+    if (!fullName || !regNumber || !department || !year) return res.status(400).json({ error: "fullName, regNumber, department, year required" });
+    const normReg = String(regNumber).trim().toUpperCase();
+    const rawPwd = password ? String(password) : normReg;
+    const passwordHash = await bcrypt.hash(rawPwd, 10);
+    const student = await prisma.student.create({
+      data: { fullName: String(fullName).trim(), regNumber: normReg, email: email ? String(email).trim() : null, department: String(department).trim(), year: String(year).trim(), passwordHash, mustChangePassword: !password, schoolId },
+      select: { id: true, fullName: true, regNumber: true, department: true, year: true, email: true },
+    });
+    return res.status(201).json(student);
+  } catch (e: any) {
+    if (e?.code === "P2002") return res.status(400).json({ error: "A student with that registration number already exists in this school." });
+    return res.status(500).json({ error: "Failed to create student" });
+  }
+});
+
+app.delete("/api/school-admin/students/:id", authenticateToken, requireSchoolAdmin, async (req: any, res) => {
+  try {
+    const schoolId = req.user.schoolId;
+    const student = await prisma.student.findUnique({ where: { id: req.params.id } });
+    if (!student || student.schoolId !== schoolId) return res.status(404).json({ error: "Student not found" });
+    await prisma.student.delete({ where: { id: req.params.id } });
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: "Failed to delete student" }); }
+});
+
+app.get("/api/school-admin/lecturers", authenticateToken, requireSchoolAdmin, async (req: any, res) => {
+  try {
+    const schoolId = req.user.schoolId;
+    const lecturers = await prisma.lecturer.findMany({ where: { schoolId }, select: { id: true, name: true, email: true, isAdmin: true }, orderBy: { name: "asc" } });
+    return res.json(lecturers);
+  } catch { return res.status(500).json({ error: "Failed to fetch lecturers" }); }
+});
+
+app.post("/api/school-admin/lecturers", authenticateToken, requireSchoolAdmin, async (req: any, res) => {
+  try {
+    const schoolId = req.user.schoolId;
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ error: "name, email, password required" });
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const existing = await prisma.lecturer.findUnique({ where: { email: normalizedEmail } });
+    if (existing) return res.status(400).json({ error: "Email already registered" });
+    const hashedPassword = await bcrypt.hash(String(password), 10);
+    const lecturer = await prisma.lecturer.create({
+      data: { name: String(name).trim(), email: normalizedEmail, password: hashedPassword, schoolId, isAdmin: false },
+      select: { id: true, name: true, email: true, isAdmin: true },
+    });
+    return res.status(201).json(lecturer);
+  } catch { return res.status(500).json({ error: "Failed to create lecturer" }); }
+});
+
+app.delete("/api/school-admin/lecturers/:id", authenticateToken, requireSchoolAdmin, async (req: any, res) => {
+  try {
+    const schoolId = req.user.schoolId;
+    if (req.params.id === req.user.id) return res.status(400).json({ error: "Cannot delete yourself" });
+    const lecturer = await prisma.lecturer.findUnique({ where: { id: req.params.id } });
+    if (!lecturer || lecturer.schoolId !== schoolId) return res.status(404).json({ error: "Lecturer not found" });
+    await prisma.lecturer.delete({ where: { id: req.params.id } });
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: "Failed to delete lecturer" }); }
+});
+
+// ── CSV Student Import ────────────────────────────────────────
+app.post("/api/school-admin/students/import", authenticateToken, requireSchoolAdmin, upload.single("file"), async (req: any, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const schoolId = req.user.schoolId;
+    const csvText = req.file.buffer.toString("utf8");
+    const lines = csvText.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return res.status(400).json({ error: "CSV must have a header row and at least one data row" });
+
+    // Parse header row (case-insensitive)
+    const parseRow = (line: string): string[] => {
+      const result: string[] = [];
+      let cur = "";
+      let inQuote = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"' && !inQuote) { inQuote = true; }
+        else if (ch === '"' && inQuote) { inQuote = false; }
+        else if (ch === ',' && !inQuote) { result.push(cur.trim()); cur = ""; }
+        else { cur += ch; }
+      }
+      result.push(cur.trim());
+      return result;
+    };
+
+    const headers = parseRow(lines[0]).map(h => h.toLowerCase().replace(/\s+/g, " ").trim());
+    const getIdx = (names: string[]) => names.reduce((found: number, n: string) => found >= 0 ? found : headers.indexOf(n), -1);
+    const nameIdx = getIdx(["full name", "fullname", "name"]);
+    const regIdx  = getIdx(["registration number", "reg number", "regnumber", "reg no", "regno"]);
+    const emailIdx = getIdx(["email"]);
+    const deptIdx = getIdx(["department", "dept"]);
+    const yearIdx = getIdx(["year"]);
+
+    if (nameIdx < 0 || regIdx < 0) return res.status(400).json({ error: "CSV must have 'Full Name' and 'Registration Number' columns" });
+
+    let created = 0;
+    let duplicates = 0;
+    const errors: string[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseRow(lines[i]);
+      const fullName = (cols[nameIdx] || "").trim();
+      const regNumber = (cols[regIdx] || "").trim().toUpperCase();
+      if (!fullName || !regNumber) { errors.push(`Row ${i + 1}: Missing name or reg number`); continue; }
+      const email = emailIdx >= 0 ? (cols[emailIdx] || "").trim() || null : null;
+      const department = (deptIdx >= 0 ? cols[deptIdx] : "") || "General";
+      const year = (yearIdx >= 0 ? cols[yearIdx] : "") || "Year 1";
+      try {
+        const exists = await prisma.student.findUnique({ where: { schoolId_regNumber: { schoolId, regNumber } } });
+        if (exists) { duplicates++; continue; }
+        const passwordHash = await bcrypt.hash(regNumber, 10);
+        await prisma.student.create({ data: { fullName, regNumber, email, department: department.trim(), year: year.trim(), passwordHash, mustChangePassword: true, schoolId } });
+        created++;
+      } catch (e: any) {
+        errors.push(`Row ${i + 1} (${regNumber}): ${e?.message || "error"}`);
+      }
+    }
+    return res.json({ created, duplicates, errors });
+  } catch { return res.status(500).json({ error: "Failed to import CSV" }); }
+});
+
+// ── PIN Generation Helper ──────────────────────────────────────
+function generatePin(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
+// ── Exam PIN Endpoints ─────────────────────────────────────────
+
+app.post("/api/exam-pins/generate/:examId", authenticateToken, async (req: any, res) => {
+  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
+  try {
+    const exam = await prisma.exam.findUnique({ where: { id: req.params.examId }, include: { course: true } });
+    if (!exam || exam.course.lecturerId !== req.user.id) return res.status(404).json({ error: "Exam not found or access denied" });
+    const { count, labels } = req.body;
+    const pinLabels: (string | null)[] = Array.isArray(labels) && labels.length > 0
+      ? labels.map((l: any) => String(l || "").trim() || null)
+      : Array.from({ length: Math.max(1, parseInt(count || "1", 10)) }, () => null);
+
+    const pins = [];
+    for (const label of pinLabels) {
+      let pin: string;
+      let attempts = 0;
+      do {
+        pin = generatePin();
+        attempts++;
+        const exists = await prisma.examPin.findUnique({ where: { pin } });
+        if (!exists) break;
+        if (attempts > 20) throw new Error("Could not generate unique PIN");
+      } while (true);
+      const created = await prisma.examPin.create({ data: { pin, examId: exam.id, schoolId: req.user.schoolId, label } });
+      pins.push(created);
+    }
+    return res.status(201).json({ pins });
+  } catch (e: any) { return res.status(500).json({ error: e?.message || "Failed to generate PINs" }); }
+});
+
+app.get("/api/exam-pins/:examId", authenticateToken, async (req: any, res) => {
+  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
+  try {
+    const exam = await prisma.exam.findUnique({ where: { id: req.params.examId }, include: { course: true } });
+    if (!exam || exam.course.lecturerId !== req.user.id) return res.status(404).json({ error: "Exam not found or access denied" });
+    const pins = await prisma.examPin.findMany({ where: { examId: req.params.examId }, orderBy: { createdAt: "asc" } });
+    return res.json(pins);
+  } catch { return res.status(500).json({ error: "Failed to fetch PINs" }); }
+});
+
+app.delete("/api/exam-pins/:pinId", authenticateToken, async (req: any, res) => {
+  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
+  try {
+    const pin = await prisma.examPin.findUnique({ where: { id: req.params.pinId }, include: { exam: { include: { course: true } } } });
+    if (!pin || pin.exam.course.lecturerId !== req.user.id) return res.status(404).json({ error: "PIN not found or access denied" });
+    if (pin.isUsed) return res.status(400).json({ error: "Cannot delete a used PIN" });
+    await prisma.examPin.delete({ where: { id: req.params.pinId } });
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: "Failed to delete PIN" }); }
+});
+
+// ── PIN Login ──────────────────────────────────────────────────
+app.post("/api/auth/pin-login", authLimiter, async (req, res) => {
+  const { pin } = req.body;
+  if (!pin) return res.status(400).json({ error: "PIN is required" });
+  try {
+    const normalizedPin = String(pin).trim().toUpperCase();
+    const examPin = await prisma.examPin.findUnique({ where: { pin: normalizedPin }, include: { exam: true } });
+    if (!examPin) return res.status(401).json({ error: "Invalid PIN" });
+    if (examPin.isUsed) return res.status(401).json({ error: "This PIN has already been used" });
+
+    const exam = examPin.exam;
+    const now = new Date();
+    if (exam.availableFrom && now < exam.availableFrom) return res.status(403).json({ error: "This exam is not yet open" });
+    if (exam.availableUntil && now > exam.availableUntil) return res.status(403).json({ error: "This exam has closed" });
+    if (!exam.isOpen) return res.status(403).json({ error: "This exam is closed" });
+
+    await prisma.examPin.update({ where: { id: examPin.id }, data: { isUsed: true, usedAt: now } });
+
+    const token = jwt.sign(
+      { id: examPin.id, role: "pin_candidate", examId: examPin.examId, schoolId: examPin.schoolId, label: examPin.label || "Candidate", pin: examPin.pin },
+      JWT_SECRET,
+      { expiresIn: "4h" }
+    );
+    return res.json({ token, examId: examPin.examId, label: examPin.label || "Candidate" });
+  } catch { return res.status(500).json({ error: "Failed to process PIN login" }); }
+});
+
+// ── Result Slip Endpoints ──────────────────────────────────────
+
+app.get("/api/results/exam/:submissionId", authenticateToken, async (req: any, res) => {
+  try {
+    const sub = await prisma.examSubmission.findUnique({
+      where: { id: req.params.submissionId },
+      include: {
+        exam: { include: { course: true } },
+        student: { include: { school: true } },
+      },
+    });
+    if (!sub) return res.status(404).json({ error: "Submission not found" });
+
+    const role = req.user.role;
+    const isStudent = role === "student" && sub.studentId === req.user.id;
+    const isLecturer = role === "lecturer" && sub.exam.course.lecturerId === req.user.id;
+    const isPinCandidate = role === "pin_candidate" && req.user.examId === sub.examId;
+    if (!isStudent && !isLecturer && !isPinCandidate) return res.status(403).json({ error: "Access denied" });
+
+    const totalMarks = sub.totalMarks ?? null;
+    const score = sub.score ?? null;
+    const percentage = totalMarks && score !== null ? (score / totalMarks) * 100 : score;
+
+    return res.json({
+      submission: { id: sub.id, submittedAt: sub.submittedAt, isGraded: sub.isGraded },
+      exam: { title: sub.exam.title, questionsStructureJson: sub.exam.questionsStructureJson, durationMinutes: null },
+      course: { code: sub.exam.course.code, title: sub.exam.course.title },
+      student: { fullName: sub.student.fullName, regNumber: sub.student.regNumber },
+      school: { name: sub.student.school.name, code: sub.student.school.code },
+      score,
+      totalMarks,
+      percentage,
+      feedback: sub.feedback,
+    });
+  } catch { return res.status(500).json({ error: "Failed to fetch result" }); }
+});
+
+app.get("/api/results/quiz/:attemptId", authenticateToken, async (req: any, res) => {
+  try {
+    const attempt = await prisma.studentAttempt.findUnique({
+      where: { id: req.params.attemptId },
+      include: {
+        quiz: { include: { course: true, questions: true } },
+        student: { include: { school: true } },
+      },
+    });
+    if (!attempt) return res.status(404).json({ error: "Attempt not found" });
+
+    const role = req.user.role;
+    const isStudent = role === "student" && attempt.studentId === req.user.id;
+    const isLecturer = role === "lecturer" && attempt.quiz.course.lecturerId === req.user.id;
+    if (!isStudent && !isLecturer) return res.status(403).json({ error: "Access denied" });
+
+    return res.json({
+      attempt: { id: attempt.id, startedAt: attempt.startedAt, submittedAt: attempt.submittedAt, isCompleted: attempt.isCompleted },
+      quiz: { title: attempt.quiz.title, durationMinutes: attempt.quiz.durationMinutes, course: attempt.quiz.course },
+      questions: attempt.quiz.questions,
+      student: { fullName: attempt.student.fullName, regNumber: attempt.student.regNumber },
+      school: { name: attempt.student.school.name, code: attempt.student.school.code },
+      score: attempt.score,
+      answersJson: attempt.answersJson,
+      submittedAt: attempt.submittedAt,
+    });
+  } catch { return res.status(500).json({ error: "Failed to fetch result" }); }
 });
 
 // Global JSON error handler — 4-param signature required for Express error middleware

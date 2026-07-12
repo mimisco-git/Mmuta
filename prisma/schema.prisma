@@ -23,6 +23,7 @@ model School {
   students    Student[]
   departments Department[]
   courses     Course[]
+  examPins    ExamPin[]
 }
 
 model SuperAdmin {
@@ -66,6 +67,7 @@ model Student {
   attempts               StudentAttempt[]
   examSubmissions        ExamSubmission[]
   assignmentSubmissions  AssignmentSubmission[]
+  examPins               ExamPin[]
 
   @@unique([schoolId, regNumber])
 }
@@ -116,6 +118,7 @@ model Exam {
   availableUntil        DateTime?
   createdAt             DateTime        @default(now())
   submissions           ExamSubmission[]
+  examPins              ExamPin[]
 }
 
 model ExamSubmission {
@@ -330,6 +333,21 @@ model DiscussionReply {
   authorName String
   body       String
   createdAt  DateTime         @default(now())
+}
+
+model ExamPin {
+  id         String    @id @default(uuid())
+  pin        String    @unique
+  examId     String
+  exam       Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId  String?
+  student    Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  schoolId   String
+  school     School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  isUsed     Boolean   @default(false)
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+  label      String?   // e.g. student name for walk-in candidates
 }
 
 model BankQuestion {

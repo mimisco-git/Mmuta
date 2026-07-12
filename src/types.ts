@@ -6,9 +6,12 @@ export interface User {
   regNumber?: string; // For student
   department?: string; // For student
   year?: string;       // For student
-  role: "student" | "lecturer" | "super_admin";
+  role: "student" | "lecturer" | "super_admin" | "pin_candidate";
   mustChangePassword?: boolean; // For student: true if they must set a new password
   schoolId?: string;
+  isAdmin?: boolean;  // For lecturer school admins
+  examId?: string;    // For pin_candidate
+  label?: string;     // For pin_candidate: candidate name
 }
 
 export interface School {

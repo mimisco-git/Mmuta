@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import TurndownService from "turndown";
-import { GraduationCap, BookOpen, PlusCircle, Trash2, Award, ClipboardList, Check, Save, Radio, Users, Send, MessageSquare, AlertTriangle, Download, Sun, Moon, Camera, LogOut, FileText, Upload, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Star, Mic, Layers, BarChart2, ThumbsUp, ArrowLeft, CheckCircle, X, Pencil, Copy, Trophy, Megaphone, TrendingUp, Calendar, Sparkles } from "lucide-react";
+import { GraduationCap, BookOpen, PlusCircle, Trash2, Award, ClipboardList, Check, Save, Radio, Users, Send, MessageSquare, AlertTriangle, Download, Sun, Moon, Camera, LogOut, FileText, Upload, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Star, Mic, Layers, BarChart2, ThumbsUp, ArrowLeft, CheckCircle, X, Pencil, Copy, Trophy, Megaphone, TrendingUp, Calendar, Sparkles, Building2 } from "lucide-react";
 import { Course, LectureNote, Quiz, StudentAttempt, Question } from "../types";
 import UserAvatar from "./UserAvatar";
 import NotificationBell from "./NotificationBell";
@@ -19,6 +19,7 @@ interface LecturerDashboardProps {
     id: string;
     name: string;
     email: string;
+    isAdmin?: boolean;
   };
   theme: "light" | "dark";
   onToggleTheme: () => void;
@@ -26,7 +27,22 @@ interface LecturerDashboardProps {
 }
 
 export default function LecturerDashboard({ token, user, theme, onToggleTheme, onLogout }: LecturerDashboardProps) {
-  const [activeTab, setActiveTab] = useState<"gradebook" | "notes" | "quizzes" | "courses" | "departments" | "live-lecture" | "exams" | "assignments" | "announcements" | "analytics" | "calendar" | "discussions">("gradebook");
+  const [activeTab, setActiveTab] = useState<"gradebook" | "notes" | "quizzes" | "courses" | "departments" | "live-lecture" | "exams" | "assignments" | "announcements" | "analytics" | "calendar" | "discussions" | "school-admin">("gradebook");
+
+  // School-admin local state
+  const [saOverview, setSaOverview] = useState<any | null>(null);
+  const [saStudents, setSaStudents] = useState<any[]>([]);
+  const [saStudentsTotal, setSaStudentsTotal] = useState(0);
+  const [saStudentsPage, setSaStudentsPage] = useState(1);
+  const [saStudentsSearch, setSaStudentsSearch] = useState("");
+  const [saLecturers, setSaLecturers] = useState<any[]>([]);
+  const [saSubTab, setSaSubTab] = useState<"students" | "lecturers">("students");
+  const [saLoading, setSaLoading] = useState(false);
+  const [saShowAddStudent, setSaShowAddStudent] = useState(false);
+  const [saShowAddLecturer, setSaShowAddLecturer] = useState(false);
+  const [saNewStudent, setSaNewStudent] = useState({ fullName: "", regNumber: "", department: "", year: "Year 1", email: "" });
+  const [saNewLecturer, setSaNewLecturer] = useState({ name: "", email: "", password: "" });
+  const csvImportRef = React.useRef<HTMLInputElement>(null);
   const [showTour, setShowTour] = useState<boolean>(() => {
     try { return !localStorage.getItem("tour_done_lecturer"); } catch { return false; }
   });
@@ -1414,6 +1430,29 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
     analytics: "Analytics",
     calendar: "Calendar",
     discussions: "Discussions",
+    "school-admin": "School Admin",
+  };
+
+  // School-admin fetch helpers
+  const fetchSaOverview = async () => {
+    try {
+      const r = await fetch("/api/school-admin/overview", { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) setSaOverview(await r.json());
+    } catch {}
+  };
+  const fetchSaStudents = async (page = saStudentsPage, search = saStudentsSearch) => {
+    setSaLoading(true);
+    try {
+      const r = await fetch(`/api/school-admin/students?page=${page}&limit=50&search=${encodeURIComponent(search)}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) { const d = await r.json(); setSaStudents(d.students || []); setSaStudentsTotal(d.total || 0); setSaStudentsPage(page); }
+    } catch {} finally { setSaLoading(false); }
+  };
+  const fetchSaLecturers = async () => {
+    setSaLoading(true);
+    try {
+      const r = await fetch("/api/school-admin/lecturers", { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) setSaLecturers(await r.json());
+    } catch {} finally { setSaLoading(false); }
   };
 
   // Badge showing which dept/year students will receive a piece of content
@@ -1513,6 +1552,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
           {navBtn("discussions",   "Discussions",    <MessageSquare className="h-4 w-4" strokeWidth={1.6} />)}
           {navBtn("announcements","Announcements",  <Megaphone className="h-4 w-4" strokeWidth={1.6} />)}
           {navBtn("departments",  "Departments",    <Users className="h-4 w-4" strokeWidth={1.6} />)}
+          {user.isAdmin && navBtn("school-admin", "School Admin", <Building2 className="h-4 w-4" strokeWidth={1.6} />)}
 
           {/* Departments I Teach */}
           {departments.length > 0 && (
@@ -3301,6 +3341,219 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
             </motion.div>
           )}
 
+          {/* ── SCHOOL ADMIN PANEL ── */}
+          {activeTab === "school-admin" && user.isAdmin && (
+            <motion.div className="space-y-5" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 280, damping: 26 }}
+              onAnimationStart={() => { fetchSaOverview(); if (saSubTab === "students") fetchSaStudents(1, ""); else fetchSaLecturers(); }}>
+
+              {/* Hidden CSV input */}
+              <input ref={csvImportRef} type="file" accept=".csv" className="hidden" onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const fd = new FormData(); fd.append("file", file);
+                try {
+                  const r = await fetch("/api/school-admin/students/import", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
+                  const d = await r.json();
+                  if (r.ok) showSuccess(`Imported ${d.created} students. ${d.duplicates} duplicates skipped.`);
+                  else showError(d.error || "Import failed");
+                  fetchSaStudents(1, saStudentsSearch);
+                } catch { showError("Import failed"); }
+                e.target.value = "";
+              }} />
+
+              {/* Overview Cards */}
+              {saOverview && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: "Students", value: saOverview.studentCount },
+                    { label: "Lecturers", value: saOverview.lecturerCount },
+                    { label: "Courses", value: saOverview.courseCount },
+                    { label: "Exams", value: saOverview.examCount },
+                  ].map(card => (
+                    <div key={card.label} className="apple-card px-4 py-4">
+                      <p className="text-[10px] font-bold text-[#6e6e73] dark:text-white/35 uppercase tracking-widest mb-1">{card.label}</p>
+                      <p className="text-[26px] font-bold text-[#1d1d1f] dark:text-white/90 leading-none">{card.value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Sub-tabs */}
+              <div className="apple-card overflow-hidden">
+                <div className="px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center gap-3">
+                  <Building2 className="h-4 w-4 text-emerald-500" />
+                  <h2 className="apple-title flex-1">School Admin Panel</h2>
+                  <div className="flex gap-1">
+                    {(["students", "lecturers"] as const).map(t => (
+                      <button key={t} onClick={() => { setSaSubTab(t); if (t === "students") fetchSaStudents(1, ""); else fetchSaLecturers(); }}
+                        className={`px-3 py-1 rounded-full text-[11px] font-semibold transition border ${saSubTab === t ? "bg-[#1d1d1f] dark:bg-white text-white dark:text-[#1d1d1f] border-transparent" : "text-[#6e6e73] dark:text-white/40 border-black/[0.08] dark:border-white/[0.08] hover:border-black/20 dark:hover:border-white/20"}`}>
+                        {t === "students" ? "Students" : "Lecturers"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* STUDENTS SUB-TAB */}
+                {saSubTab === "students" && (
+                  <div className="p-5 space-y-4">
+                    <div className="flex flex-wrap gap-3 items-center">
+                      <input type="text" value={saStudentsSearch} onChange={e => { setSaStudentsSearch(e.target.value); fetchSaStudents(1, e.target.value); }} placeholder="Search name, reg no…" className="form-input flex-1 min-w-[160px]" />
+                      <button type="button" onClick={() => setSaShowAddStudent(v => !v)} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[12px] rounded-[10px] transition cursor-pointer shadow-sm">
+                        <PlusCircle className="h-3.5 w-3.5" /> Add Student
+                      </button>
+                      <button type="button" onClick={() => csvImportRef.current?.click()} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-[12px] rounded-[10px] transition cursor-pointer shadow-sm">
+                        <Upload className="h-3.5 w-3.5" /> Import CSV
+                      </button>
+                    </div>
+
+                    {saShowAddStudent && (
+                      <form className="bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[12px] p-4 space-y-3"
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          try {
+                            const r = await fetch("/api/school-admin/students", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(saNewStudent) });
+                            const d = await r.json();
+                            if (!r.ok) { showError(d.error || "Failed to create student"); return; }
+                            showSuccess("Student created");
+                            setSaShowAddStudent(false);
+                            setSaNewStudent({ fullName: "", regNumber: "", department: "", year: "Year 1", email: "" });
+                            fetchSaStudents(saStudentsPage, saStudentsSearch);
+                          } catch { showError("Failed to create student"); }
+                        }}>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Add New Student</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div><label className={lbl}>Full Name</label><input required className="form-input" value={saNewStudent.fullName} onChange={e => setSaNewStudent(v => ({ ...v, fullName: e.target.value }))} placeholder="e.g. Amaka Okonkwo" /></div>
+                          <div><label className={lbl}>Reg Number</label><input required className="form-input font-mono uppercase" value={saNewStudent.regNumber} onChange={e => setSaNewStudent(v => ({ ...v, regNumber: e.target.value.toUpperCase() }))} placeholder="FUTO/2025/00001" /></div>
+                          <div><label className={lbl}>Department</label><input required className="form-input" value={saNewStudent.department} onChange={e => setSaNewStudent(v => ({ ...v, department: e.target.value }))} placeholder="e.g. Computer Science" /></div>
+                          <div><label className={lbl}>Year</label>
+                            <select className="form-input" value={saNewStudent.year} onChange={e => setSaNewStudent(v => ({ ...v, year: e.target.value }))}>
+                              {["Year 1","Year 2","Year 3","Year 4","Year 5"].map(y => <option key={y}>{y}</option>)}
+                            </select>
+                          </div>
+                          <div className="sm:col-span-2"><label className={lbl}>Email (optional)</label><input type="email" className="form-input" value={saNewStudent.email} onChange={e => setSaNewStudent(v => ({ ...v, email: e.target.value }))} placeholder="student@school.edu.ng" /></div>
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                          <button type="button" onClick={() => setSaShowAddStudent(false)} className="px-4 py-2 text-[12px] font-semibold rounded-[10px] border border-black/[0.09] dark:border-white/[0.09] text-[#3a3a3c] dark:text-white/60 hover:bg-black/[0.04] dark:hover:bg-white/[0.05] transition cursor-pointer">Cancel</button>
+                          <button type="submit" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[12px] rounded-[10px] transition cursor-pointer shadow-sm">Create Student</button>
+                        </div>
+                      </form>
+                    )}
+
+                    <div className="overflow-x-auto rounded-[12px] border border-black/[0.07] dark:border-white/[0.06]">
+                      <table className="min-w-full divide-y divide-black/[0.05] dark:divide-white/[0.05] text-left">
+                        <thead className="apple-thead">
+                          <tr>{["Full Name","Reg Number","Department","Year","Actions"].map(h => <th key={h}>{h}</th>)}</tr>
+                        </thead>
+                        <tbody className="divide-y divide-black/[0.05] dark:divide-white/[0.04]">
+                          {saLoading ? (
+                            [1,2,3].map(i => <tr key={i} className="animate-pulse">{[1,2,3,4,5].map(j => <td key={j} className="px-4 py-3"><div className="h-3.5 bg-black/[0.06] dark:bg-white/[0.06] rounded-md w-full" /></td>)}</tr>)
+                          ) : saStudents.length === 0 ? (
+                            <tr><td colSpan={5} className="text-center py-10 text-[12px] text-[#6e6e73] dark:text-white/35">No students found</td></tr>
+                          ) : saStudents.map(s => (
+                            <tr key={s.id} className="hover:bg-emerald-50/30 dark:hover:bg-white/[0.02] transition-colors text-[13px]">
+                              <td className="px-4 py-3 font-semibold text-[#1d1d1f] dark:text-white/90">{s.fullName}</td>
+                              <td className="px-4 py-3 font-mono text-[12px] text-[#6e6e73] dark:text-white/40 font-bold uppercase">{s.regNumber}</td>
+                              <td className="px-4 py-3 text-[12px] text-[#3a3a3c] dark:text-white/70">{s.department}</td>
+                              <td className="px-4 py-3 text-[12px] font-mono text-[#6e6e73] dark:text-white/40">{s.year}</td>
+                              <td className="px-4 py-3">
+                                <button onClick={async () => {
+                                  if (!confirm(`Delete ${s.fullName}?`)) return;
+                                  const r = await fetch(`/api/school-admin/students/${s.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+                                  if (r.ok) { showSuccess("Student deleted"); fetchSaStudents(saStudentsPage, saStudentsSearch); } else showError("Failed to delete");
+                                }} className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-[8px] transition cursor-pointer">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {saStudentsTotal > 50 && (
+                      <div className="flex justify-center gap-2 pt-1">
+                        <button disabled={saStudentsPage <= 1} onClick={() => fetchSaStudents(saStudentsPage - 1, saStudentsSearch)} className="px-3 py-1 text-[12px] rounded-[8px] border border-black/[0.08] dark:border-white/[0.08] disabled:opacity-40 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition cursor-pointer">Prev</button>
+                        <span className="text-[12px] text-[#6e6e73] dark:text-white/40 self-center">Page {saStudentsPage} · {saStudentsTotal} total</span>
+                        <button disabled={saStudentsPage * 50 >= saStudentsTotal} onClick={() => fetchSaStudents(saStudentsPage + 1, saStudentsSearch)} className="px-3 py-1 text-[12px] rounded-[8px] border border-black/[0.08] dark:border-white/[0.08] disabled:opacity-40 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition cursor-pointer">Next</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* LECTURERS SUB-TAB */}
+                {saSubTab === "lecturers" && (
+                  <div className="p-5 space-y-4">
+                    <div className="flex justify-end">
+                      <button type="button" onClick={() => setSaShowAddLecturer(v => !v)} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[12px] rounded-[10px] transition cursor-pointer shadow-sm">
+                        <PlusCircle className="h-3.5 w-3.5" /> Add Lecturer
+                      </button>
+                    </div>
+
+                    {saShowAddLecturer && (
+                      <form className="bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[12px] p-4 space-y-3"
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          try {
+                            const r = await fetch("/api/school-admin/lecturers", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(saNewLecturer) });
+                            const d = await r.json();
+                            if (!r.ok) { showError(d.error || "Failed to create lecturer"); return; }
+                            showSuccess("Lecturer created");
+                            setSaShowAddLecturer(false);
+                            setSaNewLecturer({ name: "", email: "", password: "" });
+                            fetchSaLecturers();
+                          } catch { showError("Failed to create lecturer"); }
+                        }}>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Add New Lecturer</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div><label className={lbl}>Full Name</label><input required className="form-input" value={saNewLecturer.name} onChange={e => setSaNewLecturer(v => ({ ...v, name: e.target.value }))} placeholder="Dr. Jane Smith" /></div>
+                          <div><label className={lbl}>Email</label><input required type="email" className="form-input" value={saNewLecturer.email} onChange={e => setSaNewLecturer(v => ({ ...v, email: e.target.value }))} placeholder="lecturer@school.edu.ng" /></div>
+                          <div className="sm:col-span-2"><label className={lbl}>Password</label><input required type="password" className="form-input" value={saNewLecturer.password} onChange={e => setSaNewLecturer(v => ({ ...v, password: e.target.value }))} placeholder="Temporary password" /></div>
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                          <button type="button" onClick={() => setSaShowAddLecturer(false)} className="px-4 py-2 text-[12px] font-semibold rounded-[10px] border border-black/[0.09] dark:border-white/[0.09] text-[#3a3a3c] dark:text-white/60 hover:bg-black/[0.04] dark:hover:bg-white/[0.05] transition cursor-pointer">Cancel</button>
+                          <button type="submit" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[12px] rounded-[10px] transition cursor-pointer shadow-sm">Create Lecturer</button>
+                        </div>
+                      </form>
+                    )}
+
+                    <div className="overflow-x-auto rounded-[12px] border border-black/[0.07] dark:border-white/[0.06]">
+                      <table className="min-w-full divide-y divide-black/[0.05] dark:divide-white/[0.05] text-left">
+                        <thead className="apple-thead">
+                          <tr>{["Name","Email","Admin","Actions"].map(h => <th key={h}>{h}</th>)}</tr>
+                        </thead>
+                        <tbody className="divide-y divide-black/[0.05] dark:divide-white/[0.04]">
+                          {saLoading ? (
+                            [1,2,3].map(i => <tr key={i} className="animate-pulse">{[1,2,3,4].map(j => <td key={j} className="px-4 py-3"><div className="h-3.5 bg-black/[0.06] dark:bg-white/[0.06] rounded-md w-full" /></td>)}</tr>)
+                          ) : saLecturers.length === 0 ? (
+                            <tr><td colSpan={4} className="text-center py-10 text-[12px] text-[#6e6e73] dark:text-white/35">No lecturers found</td></tr>
+                          ) : saLecturers.map(l => (
+                            <tr key={l.id} className="hover:bg-emerald-50/30 dark:hover:bg-white/[0.02] transition-colors text-[13px]">
+                              <td className="px-4 py-3 font-semibold text-[#1d1d1f] dark:text-white/90">{l.name}</td>
+                              <td className="px-4 py-3 text-[12px] text-[#6e6e73] dark:text-white/40">{l.email}</td>
+                              <td className="px-4 py-3">
+                                {l.isAdmin ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">Admin</span> : <span className="text-[12px] text-[#8e8e93] dark:text-white/30">—</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                {l.id !== user.id && (
+                                  <button onClick={async () => {
+                                    if (!confirm(`Delete ${l.name}?`)) return;
+                                    const r = await fetch(`/api/school-admin/lecturers/${l.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+                                    if (r.ok) { showSuccess("Lecturer deleted"); fetchSaLecturers(); } else showError("Failed to delete");
+                                  }} className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-[8px] transition cursor-pointer">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
           {/* ── 7. WRITTEN EXAMS ── */}
           {activeTab === "exams" && (
             <div className="space-y-5">
@@ -4021,6 +4274,19 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                     </button>
                   );
                 })}
+                {user.isAdmin && (
+                  <button
+                    onClick={() => { setActiveTab("school-admin"); setMobileLecturerOpen(false); }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[13px] font-medium transition ${
+                      activeTab === "school-admin"
+                        ? "bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                        : "text-[#3a3a3c] dark:text-white/55 hover:bg-black/[0.05] dark:hover:bg-white/[0.06]"
+                    }`}
+                  >
+                    <Building2 className="h-4 w-4" strokeWidth={1.6} />
+                    <span>School Admin</span>
+                  </button>
+                )}
 
                 {/* Departments I Teach */}
                 {departments.length > 0 && (
