@@ -51,7 +51,7 @@ export async function seedDatabase() {
     const lecturer = await prisma.lecturer.create({
       data: {
         name: "Dr. Charles Xavier",
-        email: "xavier@futo.edu.ng",
+        email: "admin@school.edu.ng",
         password: await bcrypt.hash(defaultLecturerPassword, 10),
       },
     });
@@ -62,8 +62,8 @@ export async function seedDatabase() {
     const rawStudents = [
       {
         fullName: "John Doe",
-        email: "john.doe@futo.edu.ng",
-        regNumber: "FUTO/2026/10423",
+        email: "john.doe@school.edu.ng",
+        regNumber: "STU/2025/10001",
         department: "Computer Science",
         year: "Year 3",
         securityQuestion: "What is your favorite academic course?",
@@ -71,8 +71,8 @@ export async function seedDatabase() {
       },
       {
         fullName: "Jane Smith",
-        email: "jane.smith@futo.edu.ng",
-        regNumber: "FUTO/2026/20512",
+        email: "jane.smith@school.edu.ng",
+        regNumber: "STU/2025/10002",
         department: "Information Technology",
         year: "Year 2",
         securityQuestion: "What is your favorite academic course?",
@@ -80,8 +80,8 @@ export async function seedDatabase() {
       },
       {
         fullName: "Amina Yusuf",
-        email: "amina.yusuf@futo.edu.ng",
-        regNumber: "FUTO/2026/30114",
+        email: "amina.yusuf@school.edu.ng",
+        regNumber: "STU/2025/10003",
         department: "Software Engineering",
         year: "Year 4",
         securityQuestion: "What is your high school name?",
@@ -89,8 +89,8 @@ export async function seedDatabase() {
       },
       {
         fullName: "Chidi Okafor",
-        email: "chidi.okafor@futo.edu.ng",
-        regNumber: "FUTO/2026/40991",
+        email: "chidi.okafor@school.edu.ng",
+        regNumber: "STU/2025/10004",
         department: "Cybersecurity",
         year: "Year 1",
         securityQuestion: "What was your childhood nickname?",
@@ -151,7 +151,7 @@ is_active = True
 Most programming languages support the following fundamental primitive types:
 - **Integer (int):** Whole numbers (e.g., -5, 0, 42)
 - **Float/Double (float):** Floating point decimal numbers (e.g., 3.14, -0.001)
-- **Character (char) / String (str):** Single text characters or text sequences (e.g., 'A', "Hello FUTO")
+- **Character (char) / String (str):** Single text characters or text sequences (e.g., 'A', "Hello Mmuta")
 - **Boolean (bool):** True or False values
 
 ### 3. Best Practices for Naming Variables

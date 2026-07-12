@@ -561,7 +561,7 @@ export default function LandingScreen({
                               {fixStep === "enter-reg" ? (
                                 <form onSubmit={handleGetSecurityQuestion} className="space-y-4">
                                   <div><label className={lbl}>Registration Number</label>
-                                    <input type="text" required value={fixRegNumber} onChange={e => setFixRegNumber(e.target.value.toUpperCase())} placeholder="FUTO/2026/10423" className={inp + " font-mono"} /></div>
+                                    <input type="text" required value={fixRegNumber} onChange={e => setFixRegNumber(e.target.value.toUpperCase())} placeholder="STU/2025/00001" className={inp + " font-mono"} /></div>
                                   <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[14px] font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer">
                                     {loading ? "Verifying…" : "Retrieve Challenge"} <ArrowRight className="h-4 w-4" />
                                   </button>
@@ -594,7 +594,7 @@ export default function LandingScreen({
                             <motion.form key="s-login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }} onSubmit={handleStudentLogin} className="space-y-4">
                               <motion.div initial={{ opacity: 0, y: 10, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ delay: 0.05, type: "spring", stiffness: 500, damping: 32 }}>
                                 <label className={lbl}>Registration Number</label>
-                                <input id="login-student-reg" type="text" required value={studentRegNumber} onChange={e => setStudentRegNumber(e.target.value.toUpperCase())} placeholder="FUTO/2026/10423" className={inp + " font-mono"} autoFocus />
+                                <input id="login-student-reg" type="text" required value={studentRegNumber} onChange={e => setStudentRegNumber(e.target.value.toUpperCase())} placeholder="STU/2025/00001" className={inp + " font-mono"} autoFocus />
                               </motion.div>
                               <motion.div initial={{ opacity: 0, y: 10, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ delay: 0.10, type: "spring", stiffness: 500, damping: 32 }}>
                                 <label className={lbl}>Password</label>
@@ -632,7 +632,7 @@ export default function LandingScreen({
                                   </div>
                                   <div>
                                     <label className={lbl}>Registration Number</label>
-                                    <input type="text" required value={forgotRegNumber} onChange={e => setForgotRegNumber(e.target.value.toUpperCase())} placeholder="FUTO/2026/10423" className={inp + " font-mono"} autoFocus />
+                                    <input type="text" required value={forgotRegNumber} onChange={e => setForgotRegNumber(e.target.value.toUpperCase())} placeholder="STU/2025/00001" className={inp + " font-mono"} autoFocus />
                                   </div>
                                   <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[14px] font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer">
                                     {loading ? "Looking up…" : "Continue"} <ArrowRight className="h-4 w-4" />
@@ -675,10 +675,10 @@ export default function LandingScreen({
                               <div><label className={lbl}>Full Name</label>
                                 <input type="text" required value={regFullName} onChange={e => setRegFullName(e.target.value)} placeholder="John Chijioke Okafor" className={inp} autoFocus /></div>
                               <div><label className={lbl}>Email</label>
-                                <input type="email" required value={regEmail} onChange={e => setRegEmail(e.target.value)} placeholder="you@futo.edu.ng" className={inp} /></div>
+                                <input type="email" required value={regEmail} onChange={e => setRegEmail(e.target.value)} placeholder="you@school.edu.ng" className={inp} /></div>
                               <div className="grid grid-cols-2 gap-3">
                                 <div><label className={lbl}>Reg. Number</label>
-                                  <input type="text" required value={regRegNumber} onChange={e => setRegRegNumber(e.target.value)} placeholder="FUTO/2026/…" className={inp + " font-mono uppercase"} /></div>
+                                  <input type="text" required value={regRegNumber} onChange={e => setRegRegNumber(e.target.value)} placeholder="STU/2025/…" className={inp + " font-mono uppercase"} /></div>
                                 <div><label className={lbl}>Year</label>
                                   <select value={regYear} onChange={e => setRegYear(e.target.value)} className={inp + " [&>option]:bg-slate-900"}>
                                     {yearsOptions.map(y => <option key={y} value={y}>{y}</option>)}
@@ -735,7 +735,7 @@ export default function LandingScreen({
                             <motion.form key="l-login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }} onSubmit={handleLecturerLogin} className="space-y-4">
                               <motion.div initial={{ opacity: 0, y: 10, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ delay: 0.05, type: "spring", stiffness: 500, damping: 32 }}>
                                 <label className={lbl}>Email Address</label>
-                                <input id="login-lecturer-email" type="email" required value={lecturerEmail} onChange={e => setLecturerEmail(e.target.value)} placeholder="xavier@futo.edu.ng" className={inp} autoFocus />
+                                <input id="login-lecturer-email" type="email" required value={lecturerEmail} onChange={e => setLecturerEmail(e.target.value)} placeholder="lecturer@school.edu.ng" className={inp} autoFocus />
                               </motion.div>
                               <motion.div initial={{ opacity: 0, y: 10, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ delay: 0.10, type: "spring", stiffness: 500, damping: 32 }}>
                                 <label className={lbl}>Password</label>
@@ -759,7 +759,7 @@ export default function LandingScreen({
                               <div><label className={lbl}>Full Name</label>
                                 <input type="text" required value={regLecturerName} onChange={e => setRegLecturerName(e.target.value)} placeholder="Professor Charles Xavier" className={inp} autoFocus /></div>
                               <div><label className={lbl}>Staff Email</label>
-                                <input type="email" required value={regLecturerEmail} onChange={e => setRegLecturerEmail(e.target.value)} placeholder="staff@futo.edu.ng" className={inp} /></div>
+                                <input type="email" required value={regLecturerEmail} onChange={e => setRegLecturerEmail(e.target.value)} placeholder="staff@school.edu.ng" className={inp} /></div>
                               <div><label className={lbl}>Password</label>
                                 <input type="password" required value={regLecturerPassword} onChange={e => setRegLecturerPassword(e.target.value)} placeholder="Create a strong password" className={inp} /></div>
                               <button type="submit" disabled={loading} className={`w-full py-3 rounded-xl text-white text-[14px] font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer ${USERS[1].btn}`}>

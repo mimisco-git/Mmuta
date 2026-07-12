@@ -32,7 +32,7 @@ export default function App() {
 
   // Global Theme State
   const [theme, setTheme] = useState<"light" | "dark">(
-    () => (localStorage.getItem("futo_theme") as "light" | "dark") || "light"
+    () => (localStorage.getItem("mmuta_theme") as "light" | "dark") || "light"
   );
 
   // Global Session Expiration States
@@ -49,7 +49,7 @@ export default function App() {
     } else {
       root.classList.remove("dark");
     }
-    localStorage.setItem("futo_theme", theme);
+    localStorage.setItem("mmuta_theme", theme);
   }, [theme]);
 
   const toggleTheme = () => {
@@ -164,7 +164,7 @@ export default function App() {
       try {
         Object.defineProperty(window, "fetch", { value: customFetch, configurable: true, writable: true });
       } catch {
-        console.warn("FUTO Platform: Global fetch interceptor could not be installed.");
+        console.warn("Mmuta: Global fetch interceptor could not be installed.");
       }
     }
 
@@ -218,7 +218,7 @@ export default function App() {
               Initializing
             </p>
             <p className="text-[9.5px] font-mono text-slate-400 dark:text-slate-600 uppercase tracking-widest">
-              FUTO Secure Platform
+              Mmuta Platform
             </p>
           </div>
         </div>
@@ -284,7 +284,7 @@ export default function App() {
               user={{
                 id: user.id,
                 fullName: user.fullName || "John Doe",
-                regNumber: user.regNumber || "FUTO/2026/10423",
+                regNumber: user.regNumber || "STU/2025/10001",
                 department: user.department || "Computer Science",
                 year: user.year || "Year 1",
               }}
@@ -307,7 +307,7 @@ export default function App() {
               user={{
                 id: user.id,
                 name: user.name || "Dr. Charles Xavier",
-                email: user.email || "xavier@futo.edu.ng",
+                email: user.email || "admin@school.edu.ng",
               }}
               theme={theme}
               onToggleTheme={toggleTheme}
@@ -349,7 +349,7 @@ export default function App() {
                   Session Expired
                 </h3>
                 <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                  FUTO Secure Exam Integrity Gate
+                  Mmuta Secure Exam
                 </p>
               </div>
 

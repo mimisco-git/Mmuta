@@ -27,7 +27,7 @@ export default function UserAvatar({
     }
     
     // Check localStorage first for instant rendering of the logged-in user's own avatar
-    const cached = localStorage.getItem(`futo_avatar_${userId}`);
+    const cached = localStorage.getItem(`mmuta_avatar_${userId}`);
     if (cached) {
       setAvatarUrl(cached);
       setIsLoading(false);
@@ -47,10 +47,10 @@ export default function UserAvatar({
       .then((data) => {
         if (data && data.avatar) {
           setAvatarUrl(data.avatar);
-          localStorage.setItem(`futo_avatar_${userId}`, data.avatar);
+          localStorage.setItem(`mmuta_avatar_${userId}`, data.avatar);
         } else {
           setAvatarUrl("");
-          localStorage.removeItem(`futo_avatar_${userId}`);
+          localStorage.removeItem(`mmuta_avatar_${userId}`);
         }
       })
       .catch((err) => {

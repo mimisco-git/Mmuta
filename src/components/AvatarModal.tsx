@@ -169,7 +169,7 @@ export default function AvatarModal({
       }
 
       // Save to localStorage for instant client-side reload
-      localStorage.setItem(`futo_avatar_${userId}`, capturedImage);
+      localStorage.setItem(`mmuta_avatar_${userId}`, capturedImage);
 
       onAvatarUpdated();
       onClose();
@@ -193,7 +193,7 @@ export default function AvatarModal({
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <div>
             <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-950 dark:text-slate-50 font-display">
-              FUTO Academic Identity Gate
+              Profile Photo
             </h3>
             <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-0.5">
               Secure Photo Identity Portal

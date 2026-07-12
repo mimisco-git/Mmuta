@@ -2,7 +2,7 @@
  * Demo Deployment Seed Script
  *
  * Run this against a SEPARATE database used only for the public demo instance.
- * Do NOT run against the production FUTO database.
+ * Do NOT run against the production database.
  *
  * Usage:
  *   TURSO_DATABASE_URL="libsql://your-demo-db.turso.io" \
@@ -130,7 +130,7 @@ A **variable** is a named storage location in memory. Every variable has a name 
 | \`int\` | Whole numbers | \`42\`, \`-7\` |
 | \`float\` | Decimal numbers | \`3.14\`, \`-0.5\` |
 | \`bool\` | True or False | \`True\`, \`False\` |
-| \`str\` | Text sequences | \`"Hello FUTO"\` |
+| \`str\` | Text sequences | \`"Hello Mmuta"\` |
 
 ### Declaring Variables in Python
 

@@ -10,18 +10,18 @@
 @variant dark (&:where(.dark, .dark *));
 
 /* ═══════════════════════════════════════════════════════
-   QUIZOS — Apple Liquid Glass Design System
-   Federal University of Technology, Owerri
+   Mmuta — Apple Liquid Glass Design System
+   The complete exam & learning platform for Nigerian schools
    ═══════════════════════════════════════════════════════ */
 
 :root {
   color-scheme: light dark;
 
   /* Muted brand palette — slightly desaturated like Apple */
-  --brand:          #0a9463;
-  --brand-mid:      #0d9a6e;
-  --brand-end:      #12b87a;
-  --brand-muted:    #059669;
+  --brand:          #1a7fe8;
+  --brand-mid:      #1e6fd4;
+  --brand-end:      #1e55d4;
+  --brand-muted:    #2563eb;
 
   /* Apple layered shadow system */
   --shadow-xs:

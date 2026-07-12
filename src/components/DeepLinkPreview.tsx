@@ -138,7 +138,7 @@ export default function DeepLinkPreview({ type, id, onSignIn }: Props) {
           )}
 
           <p className="text-center text-[11px] text-slate-400 dark:text-slate-600">
-            You need a FUTO student account to access this resource.
+            You need a student account to access this resource.
           </p>
         </div>
       </motion.div>
