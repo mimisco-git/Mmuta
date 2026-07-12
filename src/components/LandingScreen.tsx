@@ -19,7 +19,7 @@ export default function LandingScreen({
 }: LandingScreenProps) {
 
   /* ─── boot phase ─────────────────────────────────────── */
-  const alreadyBooted = sessionStorage.getItem("quizos_booted");
+  const alreadyBooted = sessionStorage.getItem("mmuta_booted");
   const [phase, setPhase]           = useState<"boot" | "login">(alreadyBooted ? "login" : "boot");
   const [logoVisible, setLogoVisible] = useState(false);
   const [barVisible, setBarVisible]   = useState(false);
@@ -46,7 +46,7 @@ export default function LandingScreen({
         rafRef.current = requestAnimationFrame(tick);
       } else {
         setTimeout(() => {
-          sessionStorage.setItem("quizos_booted", "1");
+          sessionStorage.setItem("mmuta_booted", "1");
           setPhase("login");
         }, 520);
       }
