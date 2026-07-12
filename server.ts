@@ -173,15 +173,28 @@ function optionalAuth(req: any, _res: any, next: any) {
   next();
 }
 
+// Super admin — only allows tokens with role: "super_admin"
+function authenticateSuperAdmin(req: any, res: any, next: any) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Access token missing" });
+  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+    if (err) return res.status(403).json({ error: "Invalid or expired token" });
+    if (user.role !== "super_admin") return res.status(403).json({ error: "Super admin access required" });
+    req.user = user;
+    next();
+  });
+}
+
 // -------------------------------------------------------------
 // AUTHENTICATION API
 // -------------------------------------------------------------
 
 // Student Registration Route
 app.post("/api/auth/student-register", authLimiter, async (req, res) => {
-  const { fullName, email, regNumber, department, year, password, securityQuestion, securityAnswer } = req.body;
+  const { fullName, email, regNumber, department, year, password, securityQuestion, securityAnswer, schoolId } = req.body;
 
-  if (!fullName || !email || !regNumber || !department || !year || !password || !securityQuestion || !securityAnswer) {
+  if (!fullName || !regNumber || !department || !year || !password || !securityQuestion || !securityAnswer || !schoolId) {
     return res.status(400).json({ error: "All registration fields are required." });
   }
   if (password.length < 8) {
@@ -190,23 +203,30 @@ app.post("/api/auth/student-register", authLimiter, async (req, res) => {
   if (password.length > 128) {
     return res.status(400).json({ error: "Password is too long." });
   }
-  if (fullName.length > MAX_NAME || email.length > MAX_EMAIL || regNumber.length > MAX_REG ||
+  if (fullName.length > MAX_NAME || (email && email.length > MAX_EMAIL) || regNumber.length > MAX_REG ||
       department.length > MAX_DEPT || year.length > MAX_YEAR ||
       securityQuestion.length > MAX_STR || securityAnswer.length > MAX_STR) {
     return res.status(400).json({ error: "One or more fields exceed the maximum allowed length." });
   }
 
   try {
-    const normalizedReg = regNumber.trim().toUpperCase();
-    const normalizedEmail = email.trim().toLowerCase();
+    // Validate school
+    const school = await prisma.school.findUnique({ where: { id: schoolId } });
+    if (!school) return res.status(400).json({ error: "Invalid school selected." });
+    if (!school.isActive) return res.status(400).json({ error: "This school is not currently active." });
 
-    const existingReg = await prisma.student.findUnique({ where: { regNumber: normalizedReg } });
+    const normalizedReg = regNumber.trim().toUpperCase();
+    const normalizedEmail = email ? email.trim().toLowerCase() : null;
+
+    const existingReg = await prisma.student.findUnique({ where: { schoolId_regNumber: { schoolId, regNumber: normalizedReg } } });
     if (existingReg) {
       return res.status(400).json({ error: "This Registration Number is already registered." });
     }
-    const existingEmail = await prisma.student.findUnique({ where: { email: normalizedEmail } });
-    if (existingEmail) {
-      return res.status(400).json({ error: "This email address is already in use." });
+    if (normalizedEmail) {
+      const existingEmail = await prisma.student.findFirst({ where: { email: normalizedEmail, schoolId } });
+      if (existingEmail) {
+        return res.status(400).json({ error: "This email address is already in use." });
+      }
     }
 
     const [passwordHash, hashedAnswer] = await Promise.all([
@@ -224,6 +244,7 @@ app.post("/api/auth/student-register", authLimiter, async (req, res) => {
         year: year.trim(),
         securityQuestion: securityQuestion.trim(),
         securityAnswer: hashedAnswer,
+        schoolId,
       },
     });
 
@@ -235,6 +256,7 @@ app.post("/api/auth/student-register", authLimiter, async (req, res) => {
         department: student.department,
         year: student.year,
         role: "student",
+        schoolId: student.schoolId,
         mustChangePassword: false,
       },
       JWT_SECRET,
@@ -250,6 +272,7 @@ app.post("/api/auth/student-register", authLimiter, async (req, res) => {
         department: student.department,
         year: student.year,
         role: "student",
+        schoolId: student.schoolId,
         mustChangePassword: false,
       },
     });
@@ -259,12 +282,13 @@ app.post("/api/auth/student-register", authLimiter, async (req, res) => {
   }
 });
 
-// Student Login — registration number + password only
+// Student Login — school + registration number + password
 app.post("/api/auth/student-login", authLimiter, async (req, res) => {
-  const { regNumber, password } = req.body;
+  const { regNumber, password, schoolId } = req.body;
 
   if (!regNumber) return res.status(400).json({ error: "Registration Number is required." });
   if (!password)  return res.status(400).json({ error: "Password is required." });
+  if (!schoolId)  return res.status(400).json({ error: "School selection is required." });
 
   try {
     const normalizedReg = regNumber.trim().toUpperCase();
@@ -274,7 +298,7 @@ app.post("/api/auth/student-login", authLimiter, async (req, res) => {
       return res.status(429).json({ error: "Too many failed attempts. Please wait 10 minutes before trying again." });
     }
 
-    const student = await prisma.student.findUnique({ where: { regNumber: normalizedReg } });
+    const student = await prisma.student.findUnique({ where: { schoolId_regNumber: { schoolId, regNumber: normalizedReg } } });
 
     if (!student) {
       recordFailedLogin(normalizedReg);
@@ -303,6 +327,7 @@ app.post("/api/auth/student-login", authLimiter, async (req, res) => {
         department: student.department,
         year: student.year,
         role: "student",
+        schoolId: student.schoolId,
         mustChangePassword: student.mustChangePassword,
       },
       JWT_SECRET,
@@ -318,6 +343,7 @@ app.post("/api/auth/student-login", authLimiter, async (req, res) => {
         department: student.department,
         year: student.year,
         role: "student",
+        schoolId: student.schoolId,
         mustChangePassword: student.mustChangePassword,
       },
     });
@@ -341,7 +367,7 @@ app.post("/api/auth/student-migrate", authLimiter, async (req, res) => {
   try {
     const normalizedReg = regNumber.trim().toUpperCase();
 
-    const student = await prisma.student.findUnique({ where: { regNumber: normalizedReg } });
+    const student = await prisma.student.findFirst({ where: { regNumber: normalizedReg } });
     if (!student) return res.status(404).json({ error: "Registration Number not found." });
 
     if (student.passwordHash !== null) {
@@ -453,7 +479,7 @@ app.post("/api/auth/student-get-security-question", strictLimiter, async (req, r
   }
 
   try {
-    const student = await prisma.student.findUnique({
+    const student = await prisma.student.findFirst({
       where: { regNumber: regNumber.trim().toUpperCase() },
       select: { securityQuestion: true },
     });
@@ -487,7 +513,7 @@ app.post("/api/auth/student-forgot-password", strictLimiter, async (req, res) =>
       return res.status(400).json({ error: "Your password cannot be the same as your registration number." });
     }
 
-    const student = await prisma.student.findUnique({ where: { regNumber: normalizedReg } });
+    const student = await prisma.student.findFirst({ where: { regNumber: normalizedReg } });
     if (!student) {
       return res.status(400).json({ error: "Incorrect registration number or security answer." });
     }
@@ -543,7 +569,7 @@ app.post("/api/auth/student-fix-year", strictLimiter, async (req, res) => {
 
   try {
     const normalizedReg = regNumber.trim().toUpperCase();
-    const student = await prisma.student.findUnique({
+    const student = await prisma.student.findFirst({
       where: { regNumber: normalizedReg },
     });
 
@@ -610,10 +636,10 @@ app.post("/api/auth/student-fix-year", strictLimiter, async (req, res) => {
 
 // Lecturer Registration Route
 app.post("/api/auth/lecturer-register", authLimiter, async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, schoolId } = req.body;
 
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: "Name, email, and password are required." });
+  if (!name || !email || !password || !schoolId) {
+    return res.status(400).json({ error: "Name, email, password, and school are required." });
   }
   if (password.length < 8) {
     return res.status(400).json({ error: "Password must be at least 8 characters." });
@@ -623,6 +649,11 @@ app.post("/api/auth/lecturer-register", authLimiter, async (req, res) => {
   }
 
   try {
+    // Validate school
+    const school = await prisma.school.findUnique({ where: { id: schoolId } });
+    if (!school) return res.status(400).json({ error: "Invalid school selected." });
+    if (!school.isActive) return res.status(400).json({ error: "This school is not currently active." });
+
     const normalizedEmail = email.trim().toLowerCase();
 
     const existingLecturer = await prisma.lecturer.findUnique({ where: { email: normalizedEmail } });
@@ -636,6 +667,7 @@ app.post("/api/auth/lecturer-register", authLimiter, async (req, res) => {
         name: name.trim(),
         email: normalizedEmail,
         password: hashedPassword,
+        schoolId,
       },
     });
 
@@ -645,6 +677,7 @@ app.post("/api/auth/lecturer-register", authLimiter, async (req, res) => {
         name: lecturer.name,
         email: lecturer.email,
         role: "lecturer",
+        schoolId: lecturer.schoolId,
       },
       JWT_SECRET,
       { expiresIn: "8h" }
@@ -657,6 +690,7 @@ app.post("/api/auth/lecturer-register", authLimiter, async (req, res) => {
         name: lecturer.name,
         email: lecturer.email,
         role: "lecturer",
+        schoolId: lecturer.schoolId,
       },
     });
   } catch (error: any) {
@@ -702,6 +736,7 @@ app.post("/api/auth/lecturer-login", authLimiter, async (req, res) => {
         name: lecturer.name,
         email: lecturer.email,
         role: "lecturer",
+        schoolId: lecturer.schoolId,
       },
       JWT_SECRET,
       { expiresIn: "8h" }
@@ -714,11 +749,181 @@ app.post("/api/auth/lecturer-login", authLimiter, async (req, res) => {
         name: lecturer.name,
         email: lecturer.email,
         role: "lecturer",
+        schoolId: lecturer.schoolId,
       },
     });
   } catch (error: any) {
     console.error("Lecturer login error:", error);
     return res.status(500).json({ error: "An internal server error occurred." });
+  }
+});
+
+// -------------------------------------------------------------
+// PUBLIC SCHOOLS LIST (no auth — used for registration dropdowns)
+// -------------------------------------------------------------
+
+app.get("/api/schools", async (_req, res) => {
+  try {
+    const schools = await prisma.school.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: "asc" },
+    });
+    return res.json(schools);
+  } catch (err) {
+    console.error("Error fetching schools:", err);
+    return res.status(500).json({ error: "Failed to fetch schools" });
+  }
+});
+
+// -------------------------------------------------------------
+// SUPER ADMIN AUTH
+// -------------------------------------------------------------
+
+// First-time super admin creation (no auth required; blocked if any SuperAdmin exists)
+app.post("/api/super-admin/create", async (req, res) => {
+  try {
+    const count = await prisma.superAdmin.count();
+    if (count > 0) {
+      return res.status(403).json({ error: "Super admin already exists. Use the login endpoint." });
+    }
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Name, email, and password are required." });
+    }
+    if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
+    const passwordHash = await bcrypt.hash(password, 12);
+    const admin = await prisma.superAdmin.create({ data: { name, email: email.trim().toLowerCase(), passwordHash } });
+    return res.status(201).json({ message: "Super admin created.", id: admin.id });
+  } catch (err) {
+    console.error("Super admin create error:", err);
+    return res.status(500).json({ error: "Failed to create super admin." });
+  }
+});
+
+app.post("/api/auth/super-admin/login", authLimiter, async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: "Email and password are required." });
+
+  try {
+    const admin = await prisma.superAdmin.findUnique({ where: { email: email.trim().toLowerCase() } });
+    if (!admin) return res.status(401).json({ error: "Invalid email or password." });
+
+    const valid = await bcrypt.compare(password, admin.passwordHash);
+    if (!valid) return res.status(401).json({ error: "Invalid email or password." });
+
+    const token = jwt.sign(
+      { id: admin.id, name: admin.name, email: admin.email, role: "super_admin" },
+      JWT_SECRET,
+      { expiresIn: "8h" }
+    );
+    return res.json({
+      token,
+      user: { id: admin.id, name: admin.name, email: admin.email, role: "super_admin" },
+    });
+  } catch (err) {
+    console.error("Super admin login error:", err);
+    return res.status(500).json({ error: "An internal server error occurred." });
+  }
+});
+
+// -------------------------------------------------------------
+// SUPER ADMIN SCHOOL MANAGEMENT
+// -------------------------------------------------------------
+
+app.get("/api/super-admin/schools", authenticateSuperAdmin, async (_req, res) => {
+  try {
+    const schools = await prisma.school.findMany({
+      include: {
+        _count: { select: { students: true, lecturers: true, courses: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.json(schools);
+  } catch (err) {
+    console.error("Error fetching schools:", err);
+    return res.status(500).json({ error: "Failed to fetch schools" });
+  }
+});
+
+app.post("/api/super-admin/schools", authenticateSuperAdmin, async (req, res) => {
+  const { name, code, email, phone, address } = req.body;
+  if (!name || !code) return res.status(400).json({ error: "School name and code are required." });
+
+  try {
+    const school = await prisma.school.create({
+      data: {
+        name: name.trim(),
+        code: code.trim().toUpperCase(),
+        email: email?.trim() || null,
+        phone: phone?.trim() || null,
+        address: address?.trim() || null,
+      },
+    });
+    return res.status(201).json(school);
+  } catch (err: any) {
+    if (err.code === "P2002") return res.status(400).json({ error: "A school with this code already exists." });
+    console.error("Error creating school:", err);
+    return res.status(500).json({ error: "Failed to create school" });
+  }
+});
+
+app.put("/api/super-admin/schools/:id", authenticateSuperAdmin, async (req, res) => {
+  const { name, code, email, phone, address } = req.body;
+  try {
+    const school = await prisma.school.update({
+      where: { id: req.params.id },
+      data: {
+        ...(name ? { name: name.trim() } : {}),
+        ...(code ? { code: code.trim().toUpperCase() } : {}),
+        ...(email !== undefined ? { email: email?.trim() || null } : {}),
+        ...(phone !== undefined ? { phone: phone?.trim() || null } : {}),
+        ...(address !== undefined ? { address: address?.trim() || null } : {}),
+      },
+    });
+    return res.json(school);
+  } catch (err: any) {
+    if (err.code === "P2002") return res.status(400).json({ error: "A school with this code already exists." });
+    if (err.code === "P2025") return res.status(404).json({ error: "School not found." });
+    return res.status(500).json({ error: "Failed to update school" });
+  }
+});
+
+app.patch("/api/super-admin/schools/:id/toggle", authenticateSuperAdmin, async (req, res) => {
+  try {
+    const school = await prisma.school.findUnique({ where: { id: req.params.id } });
+    if (!school) return res.status(404).json({ error: "School not found." });
+    const updated = await prisma.school.update({
+      where: { id: req.params.id },
+      data: { isActive: !school.isActive },
+    });
+    return res.json(updated);
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to toggle school status" });
+  }
+});
+
+app.delete("/api/super-admin/schools/:id", authenticateSuperAdmin, async (req, res) => {
+  try {
+    await prisma.school.delete({ where: { id: req.params.id } });
+    return res.json({ message: "School deleted." });
+  } catch (err: any) {
+    if (err.code === "P2025") return res.status(404).json({ error: "School not found." });
+    return res.status(500).json({ error: "Failed to delete school" });
+  }
+});
+
+app.get("/api/super-admin/stats", authenticateSuperAdmin, async (_req, res) => {
+  try {
+    const [totalSchools, totalStudents, totalLecturers, totalExams] = await Promise.all([
+      prisma.school.count(),
+      prisma.student.count(),
+      prisma.lecturer.count(),
+      prisma.exam.count(),
+    ]);
+    return res.json({ totalSchools, totalStudents, totalLecturers, totalExams });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to fetch stats" });
   }
 });
 
@@ -790,9 +995,14 @@ app.get("/api/courses", optionalAuth, async (req: any, res) => {
   try {
     // Students only see courses matching their department(s) AND year level (or null = all)
     let where: any = {};
+    // Scope to school when the user is authenticated
+    if (req.user?.schoolId) {
+      where.schoolId = req.user.schoolId;
+    }
     if (req.user?.role === "student") {
       const { depts, year } = await getStudentFilter(req.user.id);
       where = {
+        ...where,
         AND: [
           { OR: [{ departmentId: null }, { department: { name: { in: depts } } }] },
           { OR: [{ targetYear: null }, { targetYear: year }] },
@@ -887,6 +1097,7 @@ app.post("/api/courses", authenticateToken, async (req: any, res) => {
         code: code.toUpperCase().replace(/\s+/g, ""),
         title,
         lecturerId: req.user.id,
+        schoolId: req.user.schoolId,
         ...(departmentId ? { departmentId } : {}),
         ...(targetYear ? { targetYear } : {}),
       },
@@ -895,9 +1106,6 @@ app.post("/api/courses", authenticateToken, async (req: any, res) => {
     return res.status(201).json(newCourse);
   } catch (error: any) {
     console.error("Error creating course:", error);
-    if (error.code === "P2002") {
-      return res.status(400).json({ error: "A course with this code already exists" });
-    }
     return res.status(500).json({ error: "Error creating course" });
   }
 });
@@ -1612,13 +1820,14 @@ app.get("/api/departments/stats", authenticateToken, async (req: any, res) => {
   if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
   try {
     const departments = await prisma.department.findMany({
+      where: { schoolId: req.user.schoolId },
       orderBy: { name: "asc" },
       include: { courses: { select: { id: true } } },
     });
 
     const stats = await Promise.all(
       departments.map(async (dept) => {
-        const studentCount = await prisma.student.count({ where: { department: dept.name } });
+        const studentCount = await prisma.student.count({ where: { department: dept.name, schoolId: req.user.schoolId } });
 
         const gradedExamSubs = await prisma.examSubmission.findMany({
           where: { isGraded: true, student: { department: dept.name } },
@@ -1657,9 +1866,13 @@ app.get("/api/departments/stats", authenticateToken, async (req: any, res) => {
   }
 });
 
-app.get("/api/departments", async (req, res) => {
+app.get("/api/departments", optionalAuth, async (req: any, res) => {
   try {
+    // Filter by schoolId from query param (public registration), or from JWT (authenticated users)
+    const schoolId = (req.query.schoolId as string) || req.user?.schoolId;
+    const where: any = schoolId ? { schoolId } : {};
     const departments = await prisma.department.findMany({
+      where,
       orderBy: { name: "asc" },
     });
     return res.json(departments);
@@ -1680,13 +1893,13 @@ app.post("/api/departments", authenticateToken, async (req: any, res) => {
 
   try {
     const newDept = await prisma.department.create({
-      data: { name: name.trim() },
+      data: { name: name.trim(), schoolId: req.user.schoolId },
     });
     return res.status(201).json(newDept);
   } catch (error: any) {
     console.error("Error creating department:", error);
     if (error.code === "P2002") {
-      return res.status(400).json({ error: "A department with this name already exists" });
+      return res.status(400).json({ error: "A department with this name already exists in your school" });
     }
     return res.status(500).json({ error: "Error creating department" });
   }

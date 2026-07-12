@@ -30,7 +30,29 @@ export async function seedDatabase() {
 
     console.log("Seeding initial database content...");
 
-    // Create default Departments
+    // Create default School (tenant)
+    const demoSchool = await prisma.school.create({
+      data: {
+        name: "Demo School",
+        code: "DEMO",
+        email: "demo@school.edu.ng",
+        isActive: true,
+      },
+    });
+    console.log(`Created default School: ${demoSchool.name} (${demoSchool.code})`);
+
+    // Create default SuperAdmin
+    const superAdminPassword = process.env.SEED_SUPER_ADMIN_PASSWORD || "Admin@mmuta1";
+    await prisma.superAdmin.create({
+      data: {
+        name: "Platform Admin",
+        email: "admin@mmuta.ng",
+        passwordHash: await bcrypt.hash(superAdminPassword, 12),
+      },
+    });
+    console.log("Created default SuperAdmin: admin@mmuta.ng");
+
+    // Create default Departments (scoped to demoSchool)
     const depts = [
       "Computer Science",
       "Information Technology",
@@ -41,7 +63,7 @@ export async function seedDatabase() {
     ];
     for (const name of depts) {
       await prisma.department.create({
-        data: { name },
+        data: { name, schoolId: demoSchool.id },
       });
     }
     console.log(`Created ${depts.length} departments.`);
@@ -53,6 +75,7 @@ export async function seedDatabase() {
         name: "Dr. Charles Xavier",
         email: "admin@school.edu.ng",
         password: await bcrypt.hash(defaultLecturerPassword, 10),
+        schoolId: demoSchool.id,
       },
     });
 
@@ -103,6 +126,7 @@ export async function seedDatabase() {
         data: {
           ...s,
           securityAnswer: await bcrypt.hash(s.securityAnswer, 10),
+          schoolId: demoSchool.id,
         },
       });
     }
@@ -114,6 +138,7 @@ export async function seedDatabase() {
         code: "MTH101",
         title: "Elementary Mathematics I",
         lecturerId: lecturer.id,
+        schoolId: demoSchool.id,
       },
     });
 
@@ -123,6 +148,7 @@ export async function seedDatabase() {
         code: "CSC201",
         title: "Introduction to Computer Programming",
         lecturerId: lecturer.id,
+        schoolId: demoSchool.id,
       },
     });
 

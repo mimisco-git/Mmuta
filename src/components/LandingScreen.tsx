@@ -5,6 +5,7 @@ import {
   CheckCircle, Sun, Moon, Eye, Shuffle, WifiOff, Shield, Timer, HardDrive,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { School } from "../types";
 
 interface LandingScreenProps {
   theme: "light" | "dark";
@@ -60,6 +61,15 @@ export default function LandingScreen({
   const [mode, setMode]     = useState<"login" | "register" | "security-fix" | "forgot">("login");
   const [activeTab, setActiveTab] = useState<"student" | "lecturer">("student");
 
+  // Multi-tenant: schools list + selected school
+  const [schools, setSchools] = useState<School[]>([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState("");
+
+  // Super admin login
+  const [showSuperAdminLogin, setShowSuperAdminLogin] = useState(false);
+  const [superAdminEmail, setSuperAdminEmail] = useState("");
+  const [superAdminPassword, setSuperAdminPassword] = useState("");
+
   const [studentRegNumber, setStudentRegNumber] = useState("");
   const [studentPassword, setStudentPassword]   = useState("");
   const [regPassword, setRegPassword]           = useState("");
@@ -103,12 +113,22 @@ export default function LandingScreen({
     return () => clearInterval(t);
   }, []);
 
+  // Fetch schools on mount (for registration dropdowns)
   useEffect(() => {
-    fetch("/api/departments")
+    fetch("/api/schools")
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setSchools(data); })
+      .catch(() => {});
+  }, []);
+
+  // Fetch departments when selected school changes
+  useEffect(() => {
+    if (!selectedSchoolId) { setDepartmentsList([]); return; }
+    fetch(`/api/departments?schoolId=${selectedSchoolId}`)
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setDepartmentsList(data.map((d: any) => d.name)); })
       .catch(() => {});
-  }, []);
+  }, [selectedSchoolId]);
 
   /* ─── handlers ───────────────────────────────────────── */
   // Safe JSON parser — prevents raw "Unexpected token" errors reaching the UI
@@ -117,10 +137,21 @@ export default function LandingScreen({
     try { return JSON.parse(text); } catch { throw new Error("Server error. Please try again."); }
   };
 
+  const handleSuperAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(null); setSuccess(null); setLoading(true);
+    try {
+      const res  = await fetch("/api/auth/super-admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: superAdminEmail, password: superAdminPassword }) });
+      const data = await apiJSON(res);
+      if (!res.ok) { setError(data.error || "Login failed."); setLoading(false); return; }
+      setSuccess("Access granted!");
+      setTimeout(() => onLoginSuccess(data.token, data.user), 500);
+    } catch { setError("Something went wrong. Please try again."); } finally { setLoading(false); }
+  };
+
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setSuccess(null); setLoading(true);
     try {
-      const res  = await fetch("/api/auth/student-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regNumber: studentRegNumber, password: studentPassword }) });
+      const res  = await fetch("/api/auth/student-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regNumber: studentRegNumber, password: studentPassword, schoolId: selectedSchoolId }) });
       const data = await apiJSON(res);
       if (!res.ok) {
         if (res.status === 401 || res.status === 404) {
@@ -145,7 +176,7 @@ export default function LandingScreen({
     if (regPassword.toUpperCase() === regRegNumber.trim().toUpperCase()) { setError("Your password cannot be the same as your registration number."); return; }
     setLoading(true);
     try {
-      const res  = await fetch("/api/auth/student-register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fullName: regFullName, email: regEmail, regNumber: regRegNumber, department: regDepartment, year: regYear, password: regPassword, securityQuestion, securityAnswer }) });
+      const res  = await fetch("/api/auth/student-register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fullName: regFullName, email: regEmail, regNumber: regRegNumber, department: regDepartment, year: regYear, password: regPassword, securityQuestion, securityAnswer, schoolId: selectedSchoolId }) });
       const data = await apiJSON(res);
       if (!res.ok) {
         setError(data.error || "Registration failed. Please check your details and try again.");
@@ -171,7 +202,7 @@ export default function LandingScreen({
   const handleLecturerRegister = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setSuccess(null); setLoading(true);
     try {
-      const res  = await fetch("/api/auth/lecturer-register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: regLecturerName, email: regLecturerEmail, password: regLecturerPassword }) });
+      const res  = await fetch("/api/auth/lecturer-register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: regLecturerName, email: regLecturerEmail, password: regLecturerPassword, schoolId: selectedSchoolId }) });
       const data = await apiJSON(res);
       if (!res.ok) throw new Error(data.error || "Lecturer registration failed");
       setSuccess("Lecturer account created!");
@@ -231,6 +262,7 @@ export default function LandingScreen({
 
   const handleBack = () => {
     setSelectedUser(null); setMode("login");
+    setShowSuperAdminLogin(false);
     setError(null); setSuccess(null);
     setStudentPassword("");
   };
@@ -405,8 +437,62 @@ export default function LandingScreen({
               {/* Interactive zone — circles or inline form */}
               <AnimatePresence mode="wait">
 
+                {/* SUPER ADMIN LOGIN */}
+                {showSuperAdminLogin && (
+                  <motion.div
+                    key="super-admin-login"
+                    initial={{ opacity: 0, y: 28, scale: 0.93, filter: "blur(16px)" }}
+                    animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                    exit={{ opacity: 0, y: 14, scale: 0.95, filter: "blur(10px)" }}
+                    transition={{ type: "spring", stiffness: 480, damping: 32 }}
+                    className="w-full max-w-[340px]"
+                  >
+                    <div className="rounded-[22px] overflow-hidden" style={{ background: "rgba(8,13,10,0.78)", backdropFilter: "blur(56px) saturate(200%)", WebkitBackdropFilter: "blur(56px) saturate(200%)", border: "1px solid rgba(255,255,255,0.11)", boxShadow: "0 32px 72px rgba(0,0,0,0.75), 0 1px 0 rgba(255,255,255,0.10) inset, 0 -1px 0 rgba(0,0,0,0.20) inset" }}>
+                      <div className="flex items-center justify-between px-6 pt-5 pb-0">
+                        <span className="text-white/60 text-[11px] font-bold uppercase tracking-[0.14em]">Platform Admin</span>
+                        <button onClick={() => { setShowSuperAdminLogin(false); setError(null); }} className="flex items-center gap-1 text-white/30 hover:text-white/65 text-[12px] transition-colors cursor-pointer">
+                          <ArrowLeft className="h-3 w-3" /> Back
+                        </button>
+                      </div>
+                      <div className="px-6 py-5 space-y-4">
+                        <AnimatePresence>
+                          {error && (
+                            <motion.div initial={{ opacity: 0, y: -6, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                              className="flex items-start gap-2.5 bg-red-500/15 border border-red-400/25 rounded-xl p-3 text-red-300">
+                              <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
+                              <p className="text-[12.5px] leading-relaxed">{error}</p>
+                            </motion.div>
+                          )}
+                          {success && (
+                            <motion.div initial={{ opacity: 0, y: -6, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                              className="flex items-start gap-2.5 bg-emerald-500/15 border border-emerald-400/25 rounded-xl p-3 text-emerald-300">
+                              <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                              <p className="text-[12.5px] leading-relaxed">{success}</p>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                        <form onSubmit={handleSuperAdminLogin} className="space-y-4">
+                          <div>
+                            <label className={lbl}>Admin Email</label>
+                            <input type="email" required value={superAdminEmail} onChange={e => setSuperAdminEmail(e.target.value)} placeholder="admin@mmuta.ng" className={inp} autoFocus />
+                          </div>
+                          <div>
+                            <label className={lbl}>Password</label>
+                            <input type="password" required value={superAdminPassword} onChange={e => setSuperAdminPassword(e.target.value)} placeholder="••••••••••" className={inp} />
+                          </div>
+                          <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-slate-600 hover:bg-slate-500 text-white text-[14px] font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer">
+                            {loading ? "Signing in…" : "Sign In"} {!loading && <ArrowRight className="h-4 w-4" />}
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
                 {/* USER SELECTION — two circles */}
-                {selectedUser === null && (
+                {!showSuperAdminLogin && selectedUser === null && (
                   <motion.div
                     key="user-select"
                     initial={{ opacity: 0, y: 20, filter: "blur(12px)" }}
@@ -481,7 +567,7 @@ export default function LandingScreen({
                 )}
 
                 {/* INLINE FORM — springs in where the circles were */}
-                {selectedUser !== null && (
+                {!showSuperAdminLogin && selectedUser !== null && (
                   <motion.div
                     key="form-view"
                     initial={{ opacity: 0, y: 28, scale: 0.93, filter: "blur(16px)" }}
@@ -592,6 +678,13 @@ export default function LandingScreen({
                           {/* STUDENT LOGIN */}
                           {selectedUser === "student" && mode === "login" && (
                             <motion.form key="s-login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }} onSubmit={handleStudentLogin} className="space-y-4">
+                              <motion.div initial={{ opacity: 0, y: 10, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ delay: 0.03, type: "spring", stiffness: 500, damping: 32 }}>
+                                <label className={lbl}>School / Institution</label>
+                                <select required value={selectedSchoolId} onChange={e => setSelectedSchoolId(e.target.value)} className={inp + " [&>option]:bg-slate-900"}>
+                                  <option value="">Select your school…</option>
+                                  {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select>
+                              </motion.div>
                               <motion.div initial={{ opacity: 0, y: 10, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ delay: 0.05, type: "spring", stiffness: 500, damping: 32 }}>
                                 <label className={lbl}>Registration Number</label>
                                 <input id="login-student-reg" type="text" required value={studentRegNumber} onChange={e => setStudentRegNumber(e.target.value.toUpperCase())} placeholder="STU/2025/00001" className={inp + " font-mono"} autoFocus />
@@ -672,6 +765,11 @@ export default function LandingScreen({
                           {selectedUser === "student" && mode === "register" && (
                             <motion.form key="s-reg" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} onSubmit={handleStudentRegister} className="space-y-3.5">
                               <p className="text-[10.5px] font-bold text-emerald-400/80 uppercase tracking-[0.16em] flex items-center gap-1.5"><ClipboardCheck className="h-3 w-3" /> New Student Registration</p>
+                              <div><label className={lbl}>School / Institution</label>
+                                <select required value={selectedSchoolId} onChange={e => setSelectedSchoolId(e.target.value)} className={inp + " [&>option]:bg-slate-900"}>
+                                  <option value="">Select your school…</option>
+                                  {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select></div>
                               <div><label className={lbl}>Full Name</label>
                                 <input type="text" required value={regFullName} onChange={e => setRegFullName(e.target.value)} placeholder="John Chijioke Okafor" className={inp} autoFocus /></div>
                               <div><label className={lbl}>Email</label>
@@ -756,6 +854,11 @@ export default function LandingScreen({
                           {selectedUser === "lecturer" && mode === "register" && (
                             <motion.form key="l-reg" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} onSubmit={handleLecturerRegister} className="space-y-4">
                               <p className="text-[10.5px] font-bold text-blue-400/80 uppercase tracking-[0.16em] flex items-center gap-1.5"><GraduationCap className="h-3 w-3" /> Staff Registration</p>
+                              <div><label className={lbl}>School / Institution</label>
+                                <select required value={selectedSchoolId} onChange={e => setSelectedSchoolId(e.target.value)} className={inp + " [&>option]:bg-slate-900"}>
+                                  <option value="">Select your school…</option>
+                                  {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select></div>
                               <div><label className={lbl}>Full Name</label>
                                 <input type="text" required value={regLecturerName} onChange={e => setRegLecturerName(e.target.value)} placeholder="Professor Charles Xavier" className={inp} autoFocus /></div>
                               <div><label className={lbl}>Staff Email</label>
@@ -779,10 +882,17 @@ export default function LandingScreen({
             </div>
 
             {/* ── bottom tagline ── */}
-            <div className="absolute bottom-5 inset-x-0 text-center pointer-events-none select-none">
-              <p className="text-white/14 text-[9.5px] font-mono tracking-[0.28em] uppercase">
+            <div className="absolute bottom-5 inset-x-0 text-center select-none">
+              <p className="text-white/14 text-[9.5px] font-mono tracking-[0.28em] uppercase pointer-events-none">
                 © 2026 · Mmuta
               </p>
+              <button
+                type="button"
+                className="mt-1.5 text-white/15 hover:text-white/40 text-[9px] font-mono tracking-[0.18em] uppercase transition-colors cursor-pointer"
+                onClick={() => { setShowSuperAdminLogin(true); setSelectedUser(null); setError(null); setSuccess(null); setSuperAdminEmail(""); setSuperAdminPassword(""); }}
+              >
+                Platform Admin
+              </button>
             </div>
           </motion.div>
         )}

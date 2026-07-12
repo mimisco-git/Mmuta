@@ -27,6 +27,17 @@ async function main() {
 
   console.log("Seeding demo database...\n");
 
+  // ── Demo School (top-level tenant) ────────────────────────────────
+  const demoSchool = await prisma.school.create({
+    data: {
+      name: "Demo University",
+      code: "DEMO",
+      email: "demo@university.edu.ng",
+      isActive: true,
+    },
+  });
+  console.log(`Created demo school: ${demoSchool.name}`);
+
   // ── Departments ────────────────────────────────────────────────────
   const deptNames = [
     "Computer Science",
@@ -37,7 +48,7 @@ async function main() {
     "Mechanical Engineering",
   ];
   for (const name of deptNames) {
-    await prisma.department.create({ data: { name } });
+    await prisma.department.create({ data: { name, schoolId: demoSchool.id } });
   }
   console.log(`Created ${deptNames.length} departments.`);
 
@@ -53,6 +64,7 @@ async function main() {
       email: "ada.okonkwo@demo.edu.ng",
       password: lecturerPwHash,
       departments: JSON.stringify(["Computer Science", "Software Engineering"]),
+      schoolId: demoSchool.id,
     },
   });
 
@@ -62,6 +74,7 @@ async function main() {
       email: "emeka.nwosu@demo.edu.ng",
       password: lecturerPwHash2,
       departments: JSON.stringify(["Electrical & Electronic Engineering", "Information Technology"]),
+      schoolId: demoSchool.id,
     },
   });
 
@@ -93,6 +106,7 @@ async function main() {
         mustChangePassword: false,
         securityQuestion: "What is your university name?",
         securityAnswer: secAnswerHash,
+        schoolId: demoSchool.id,
       },
     });
     students.push(student);
@@ -101,16 +115,16 @@ async function main() {
 
   // ── Courses ────────────────────────────────────────────────────────
   const csc201 = await prisma.course.create({
-    data: { code: "CSC201", title: "Introduction to Computer Programming", lecturerId: ada.id, targetYear: "Year 2" },
+    data: { code: "CSC201", title: "Introduction to Computer Programming", lecturerId: ada.id, targetYear: "Year 2", schoolId: demoSchool.id },
   });
   const csc301 = await prisma.course.create({
-    data: { code: "CSC301", title: "Data Structures and Algorithms", lecturerId: ada.id, targetYear: "Year 3" },
+    data: { code: "CSC301", title: "Data Structures and Algorithms", lecturerId: ada.id, targetYear: "Year 3", schoolId: demoSchool.id },
   });
   const eet101 = await prisma.course.create({
-    data: { code: "EET101", title: "Circuit Theory and Electronics", lecturerId: emeka.id, targetYear: "Year 1" },
+    data: { code: "EET101", title: "Circuit Theory and Electronics", lecturerId: emeka.id, targetYear: "Year 1", schoolId: demoSchool.id },
   });
   const it201 = await prisma.course.create({
-    data: { code: "IT201", title: "Database Management Systems", lecturerId: emeka.id, targetYear: "Year 2" },
+    data: { code: "IT201", title: "Database Management Systems", lecturerId: emeka.id, targetYear: "Year 2", schoolId: demoSchool.id },
   });
   console.log("Created 4 courses.");
 

@@ -6,8 +6,21 @@ export interface User {
   regNumber?: string; // For student
   department?: string; // For student
   year?: string;       // For student
-  role: "student" | "lecturer";
+  role: "student" | "lecturer" | "super_admin";
   mustChangePassword?: boolean; // For student: true if they must set a new password
+  schoolId?: string;
+}
+
+export interface School {
+  id: string;
+  name: string;
+  code: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  isActive: boolean;
+  createdAt: string;
+  _count?: { students: number; lecturers: number; courses: number };
 }
 
 export interface Lecturer {

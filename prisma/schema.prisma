@@ -8,6 +8,31 @@ generator client {
   previewFeatures = ["driverAdapters"]
 }
 
+model School {
+  id          String       @id @default(uuid())
+  name        String
+  code        String       @unique  // e.g. "FUTO", "UNIZIK", "ESUT"
+  email       String?
+  phone       String?
+  address     String?
+  logoData    String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+
+  lecturers   Lecturer[]
+  students    Student[]
+  departments Department[]
+  courses     Course[]
+}
+
+model SuperAdmin {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
 model Lecturer {
   id            String         @id @default(uuid())
   name          String
@@ -15,6 +40,9 @@ model Lecturer {
   password      String
   avatarData    String?
   departments   String         @default("[]") // JSON array of dept names this lecturer teaches
+  schoolId      String
+  school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  isAdmin       Boolean        @default(false)
   courses       Course[]
   announcements Announcement[]
   bankQuestions BankQuestion[]
@@ -23,8 +51,8 @@ model Lecturer {
 model Student {
   id               String           @id @default(uuid())
   fullName         String
-  email            String           @unique @default("student@futo.edu.ng")
-  regNumber        String           @unique // Normalized FUTO/2026/10423
+  email            String?
+  regNumber        String           // Normalized e.g. FUTO/2026/10423
   passwordHash     String?          // null = account not yet migrated
   mustChangePassword Boolean        @default(false)
   department            String           @default("Computer Science")
@@ -33,27 +61,37 @@ model Student {
   securityQuestion String           @default("What is your favorite academic course?")
   securityAnswer   String           @default("Computer Science")
   avatarData       String?
+  schoolId         String
+  school           School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   attempts               StudentAttempt[]
   examSubmissions        ExamSubmission[]
   assignmentSubmissions  AssignmentSubmission[]
+
+  @@unique([schoolId, regNumber])
 }
 
 model Department {
   id        String   @id @default(uuid())
-  name      String   @unique
+  name      String
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
   createdAt DateTime @default(now())
   courses   Course[]
+
+  @@unique([schoolId, name])
 }
 
 model Course {
   id            String           @id @default(uuid())
-  code          String           @unique // e.g. MTH101, CSC201
+  code          String           // e.g. MTH101, CSC201
   title         String
   lecturerId    String
   lecturer      Lecturer         @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
   departmentId  String?
   department    Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   targetYear    String?          // null = all years, "Year 1", "Year 2", etc.
+  schoolId      String
+  school        School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   notes         LectureNote[]
   quizzes       Quiz[]
   liveSessions  LectureSession[]

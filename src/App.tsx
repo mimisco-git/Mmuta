@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import LandingScreen from "./components/LandingScreen";
 import StudentDashboard from "./components/StudentDashboard";
 import LecturerDashboard from "./components/LecturerDashboard";
+import SuperAdminDashboard from "./components/SuperAdminDashboard";
 import ForceChangePasswordScreen from "./components/ForceChangePasswordScreen";
 import DeepLinkPreview from "./components/DeepLinkPreview";
 import { User } from "./types";
@@ -256,6 +257,16 @@ export default function App() {
             <LandingScreen theme={theme} onToggleTheme={toggleTheme} onLoginSuccess={handleLoginSuccess} />
           </motion.div>
           )
+        ) : user.role === "super_admin" ? (
+          <motion.div
+            key="super-admin-dashboard"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <SuperAdminDashboard token={token} user={user} onLogout={handleLogout} />
+          </motion.div>
         ) : user.role === "student" && user.mustChangePassword ? (
           <motion.div
             key="force-change-password"
