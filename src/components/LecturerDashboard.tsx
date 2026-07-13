@@ -562,7 +562,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
       const td = new TurndownService({ headingStyle: "atx", bulletListMarker: "-", codeBlockStyle: "fenced" });
       const md = td.turndown(html);
       setNoteContent(md);
-      showSuccess("Document imported — review and publish.");
+      showSuccess("Document imported  -  review and publish.");
     } catch { showError("Failed to import document."); }
     setDocxImporting(false);
   };
@@ -1131,7 +1131,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
   return (
     <div className="flex h-screen overflow-hidden apple-window-bg dark:bg-[#141416] font-sans relative">
 
-      {/* Onboarding tour — shown once to new lecturers */}
+      {/* Onboarding tour  -  shown once to new lecturers */}
       {showTour && (
         <OnboardingTour role="lecturer" onDone={() => {
           setShowTour(false);
@@ -1145,7 +1145,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
         <div style={{ position: "absolute", width: 600, height: 600, bottom: -100, left: -100, background: "radial-gradient(ellipse at center, rgba(4,120,87,0.035) 0%, transparent 62%)" }} />
       </div>
 
-      {/* ── LEFT SIDEBAR — desktop only ── */}
+      {/* ── LEFT SIDEBAR  -  desktop only ── */}
       <aside className="hidden sm:flex sm:w-[232px] flex-shrink-0 flex-col h-full apple-sidebar relative z-10">
 
         {/* Traffic lights */}
@@ -1276,7 +1276,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
             </h1>
           </div>
           <div className="flex items-center gap-1">
-            {/* Notification bell — always visible */}
+            {/* Notification bell  -  always visible */}
             <NotificationBell token={token} />
             {/* Mobile-only: avatar + theme + logout */}
             <button
@@ -1518,7 +1518,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                                   Override
                                 </button>
                               ) : (
-                                <span className="text-[12px] text-[#6e6e73] dark:text-white/30">—</span>
+                                <span className="text-[12px] text-[#6e6e73] dark:text-white/30"> - </span>
                               )}
                             </td>
                           </tr>
@@ -1631,7 +1631,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                       <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
                         <div className="flex items-center gap-1">
                           <label className={lbl}>Content</label>
-                          <span className="text-[10px] text-[#8e8e93] dark:text-white/30 ml-1">— Markdown · paste from Word preserves formatting</span>
+                          <span className="text-[10px] text-[#8e8e93] dark:text-white/30 ml-1"> -  Markdown · paste from Word preserves formatting</span>
                         </div>
                         <div className="flex items-center gap-0.5 flex-wrap">
                           {([
@@ -1725,7 +1725,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                       <input type="datetime-local" value={quizAvailableFrom} onChange={(e) => setQuizAvailableFrom(e.target.value)} className="form-input" />
                     </div>
                     <div>
-                      <label className={lbl}>Closes At <span className="normal-case font-normal text-[#6e6e73] dark:text-white/30">(optional — students lose access after this)</span></label>
+                      <label className={lbl}>Closes At <span className="normal-case font-normal text-[#6e6e73] dark:text-white/30">(optional  -  students lose access after this)</span></label>
                       <input type="datetime-local" value={quizAvailableUntil} onChange={(e) => setQuizAvailableUntil(e.target.value)} className="form-input" />
                     </div>
                   </div>
@@ -2192,8 +2192,8 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                       {[
                         { label: "Courses", value: String(overview.totalCourses), sub: "registered", accent: "blue" },
                         { label: "Total Submissions", value: String(overview.totalSubmissions), sub: "graded", accent: "emerald" },
-                        { label: "Class Average", value: overview.overallAvg != null ? `${overview.overallAvg.toFixed(1)}%` : "—", sub: overview.overallAvg != null ? `Grade ${gradeLetter(overview.overallAvg)}` : "no data", accent: "purple" },
-                        { label: "Pass Rate", value: overview.passRate != null ? `${overview.passRate.toFixed(0)}%` : "—", sub: "≥50% threshold", accent: "green" },
+                        { label: "Class Average", value: overview.overallAvg != null ? `${overview.overallAvg.toFixed(1)}%` : " - ", sub: overview.overallAvg != null ? `Grade ${gradeLetter(overview.overallAvg)}` : "no data", accent: "purple" },
+                        { label: "Pass Rate", value: overview.passRate != null ? `${overview.passRate.toFixed(0)}%` : " - ", sub: "≥50% threshold", accent: "green" },
                       ].map(s => (
                         <div key={s.label} className="apple-card px-4 py-4">
                           <p className="text-[10px] font-bold text-[#6e6e73] dark:text-white/35 uppercase tracking-widest mb-1">{s.label}</p>
@@ -2264,7 +2264,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                                             : "border-red-300 dark:border-red-700 text-red-700 dark:text-red-400"
                                           }`}>{gradeLetter(c.overallAvg)}</span>
                                         </>
-                                      ) : <span className="text-[11px] text-[#8e8e93] dark:text-white/30">—</span>}
+                                      ) : <span className="text-[11px] text-[#8e8e93] dark:text-white/30"> - </span>}
                                     </div>
                                   </div>
                                   {c.overallAvg != null && (
@@ -2315,11 +2315,11 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                                 ].map((col, i) => (
                                   <td key={i} className="px-4 py-3">
                                     {col.n === 0 ? (
-                                      <span className="text-[#c7c7cc] dark:text-white/20">—</span>
+                                      <span className="text-[#c7c7cc] dark:text-white/20"> - </span>
                                     ) : (
                                       <>
                                         <span className={`font-bold ${col.avg != null && col.avg >= 50 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                                          {col.avg != null ? `${col.avg.toFixed(1)}%` : "—"}
+                                          {col.avg != null ? `${col.avg.toFixed(1)}%` : " - "}
                                         </span>
                                         <span className="block text-[10px] text-[#8e8e93] dark:text-white/30">{col.count} sub · {col.n} set</span>
                                       </>
@@ -2331,7 +2331,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                                     <span className={`font-black text-[13px] ${c.overallAvg >= 70 ? "text-emerald-600 dark:text-emerald-400" : c.overallAvg >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
                                       {c.overallAvg.toFixed(1)}%
                                     </span>
-                                  ) : <span className="text-[#c7c7cc] dark:text-white/20">—</span>}
+                                  ) : <span className="text-[#c7c7cc] dark:text-white/20"> - </span>}
                                 </td>
                               </tr>
                             ))}
@@ -2451,7 +2451,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
               <div className="apple-card">
                 <div className="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06]">
                   <h2 className="apple-title">Academic Departments</h2>
-                  <p className="apple-subtitle">Establish departments — courses and students are linked to them.</p>
+                  <p className="apple-subtitle">Establish departments  -  courses and students are linked to them.</p>
                 </div>
                 <div className="p-5">
                   <form onSubmit={handleCreateDepartment} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[12px] p-4">
@@ -2502,7 +2502,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                           </div>
                         </div>
                         {dept.courseCount === 0 && (
-                          <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-3 text-center">No courses assigned yet — assign via Course Registry</p>
+                          <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-3 text-center">No courses assigned yet  -  assign via Course Registry</p>
                         )}
                       </div>
                     ))}
@@ -2714,7 +2714,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                               <td className="px-4 py-3 font-semibold text-[#1d1d1f] dark:text-white/90">{l.name}</td>
                               <td className="px-4 py-3 text-[12px] text-[#6e6e73] dark:text-white/40">{l.email}</td>
                               <td className="px-4 py-3">
-                                {l.isAdmin ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">Admin</span> : <span className="text-[12px] text-[#8e8e93] dark:text-white/30">—</span>}
+                                {l.isAdmin ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">Admin</span> : <span className="text-[12px] text-[#8e8e93] dark:text-white/30"> - </span>}
                               </td>
                               <td className="px-4 py-3">
                                 {l.id !== user.id && (
@@ -2776,7 +2776,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
 
                       {/* Step 1: Upload questions */}
                       <div className="space-y-3 border border-black/[0.07] dark:border-white/[0.07] rounded-[12px] p-4">
-                        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Step 1 — Upload Questions</p>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Step 1  -  Upload Questions</p>
                         <label className="flex items-center gap-3 p-3 border-2 border-dashed border-black/[0.10] dark:border-white/[0.12] rounded-[10px] cursor-pointer hover:border-emerald-400 transition-colors">
                           <Upload className="h-5 w-5 text-[#6e6e73] dark:text-white/40 shrink-0" />
                           <span className="text-[12.5px] text-[#6e6e73] dark:text-white/50">{examFile ? examFile.name : "Click to choose file (.docx or .txt)"}</span>
@@ -2796,7 +2796,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                       {/* Step 2: Marks + answers per question */}
                       {examParsedStructure && examParsedStructure.length > 0 && (
                         <div className="space-y-4 border border-emerald-200 dark:border-emerald-900/40 rounded-[12px] p-4 bg-emerald-50/30 dark:bg-emerald-950/10">
-                          <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Step 2 — Answer Key &amp; Marks</p>
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Step 2  -  Answer Key &amp; Marks</p>
                           <p className="text-[12px] text-[#6e6e73] dark:text-white/50">For each question, type the model answer and assign marks.</p>
                           {examParsedStructure.map((q: any) => {
                             const hasSubqs = q.subqs?.length > 0;
@@ -2922,7 +2922,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                         </label>
                         <textarea rows={4} value={answerKeyText} onChange={e => { setAnswerKeyText(e.target.value); setAnswerKeyFile(null); }} placeholder="Or paste answer key text..." className="form-input resize-none" />
                         <div>
-                          <p className={lbl}>Marks Per Question <span className="text-[#6e6e73] dark:text-white/40 font-normal">(optional — comma-separated, e.g. 5,10,5,3)</span></p>
+                          <p className={lbl}>Marks Per Question <span className="text-[#6e6e73] dark:text-white/40 font-normal">(optional  -  comma-separated, e.g. 5,10,5,3)</span></p>
                           <input type="text" value={answerKeyMarks} onChange={e => setAnswerKeyMarks(e.target.value)} placeholder="e.g. 5,10,5,3" className="form-input" />
                           {answerKeyMarks.trim() && (
                             <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
@@ -3061,12 +3061,12 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                         <input type="text" value={assignmentDescription} onChange={e => setAssignmentDescription(e.target.value)} placeholder="Brief instructions for students..." className="form-input" />
                       </div>
                       <div>
-                        <label className={lbl}>Due Date <span className="normal-case font-normal text-[#6e6e73] dark:text-white/30">(optional — blocks submissions after this)</span></label>
+                        <label className={lbl}>Due Date <span className="normal-case font-normal text-[#6e6e73] dark:text-white/30">(optional  -  blocks submissions after this)</span></label>
                         <input type="datetime-local" value={assignmentDueDate} onChange={e => setAssignmentDueDate(e.target.value)} className="form-input" />
                       </div>
                       {/* Step 1: Upload questions */}
                       <div className="space-y-3 border border-black/[0.07] dark:border-white/[0.07] rounded-[12px] p-4">
-                        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Step 1 — Upload Questions</p>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Step 1  -  Upload Questions</p>
                         <label className="flex items-center gap-3 p-3 border-2 border-dashed border-black/[0.10] dark:border-white/[0.12] rounded-[10px] cursor-pointer hover:border-emerald-400 transition-colors">
                           <Upload className="h-5 w-5 text-[#6e6e73] dark:text-white/40 shrink-0" />
                           <span className="text-[12.5px] text-[#6e6e73] dark:text-white/50">{assignmentFile ? assignmentFile.name : "Click to choose file (.docx or .txt)"}</span>
@@ -3086,7 +3086,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                       {/* Step 2: Marks + answers per question */}
                       {assignmentParsedStructure && assignmentParsedStructure.length > 0 && (
                         <div className="space-y-4 border border-emerald-200 dark:border-emerald-900/40 rounded-[12px] p-4 bg-emerald-50/30 dark:bg-emerald-950/10">
-                          <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Step 2 — Answer Key &amp; Marks</p>
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Step 2  -  Answer Key &amp; Marks</p>
                           <p className="text-[12px] text-[#6e6e73] dark:text-white/50">For each question, type the model answer and assign marks.</p>
                           {assignmentParsedStructure.map((q: any) => {
                             const hasSubqs = q.subqs?.length > 0;
@@ -3217,7 +3217,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                         </label>
                         <textarea rows={4} value={assignmentKeyText} onChange={e => { setAssignmentKeyText(e.target.value); setAssignmentKeyFile(null); }} placeholder="Or paste answer key text..." className="form-input resize-none" />
                         <div>
-                          <p className={lbl}>Marks Per Question <span className="text-[#6e6e73] dark:text-white/40 font-normal">(optional — comma-separated, e.g. 5,10,5,3)</span></p>
+                          <p className={lbl}>Marks Per Question <span className="text-[#6e6e73] dark:text-white/40 font-normal">(optional  -  comma-separated, e.g. 5,10,5,3)</span></p>
                           <input type="text" value={assignmentKeyMarks} onChange={e => setAssignmentKeyMarks(e.target.value)} placeholder="e.g. 5,10,5,3" className="form-input" />
                           {assignmentKeyMarks.trim() && (
                             <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">

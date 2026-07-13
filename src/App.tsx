@@ -117,7 +117,7 @@ export default function App() {
           }
         }
       } catch {
-        // malformed token — silently ignore, server will reject it
+        // malformed token  -  silently ignore, server will reject it
       }
     };
 
@@ -276,7 +276,7 @@ export default function App() {
         <Route path="*" element={token && user ? <Navigate to="/app" replace /> : <LoginFlow />} />
       </Routes>
 
-      {/* Global Session Expiration Modal — Premium Glass Design */}
+      {/* Global Session Expiration Modal  -  Premium Glass Design */}
       <AnimatePresence>
         {showSessionExpired && (
           <motion.div

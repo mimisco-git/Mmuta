@@ -14,7 +14,7 @@ import { prisma } from "./src/lib/db.js";
 import { seedDatabase } from "./src/lib/seed.js";
 
 
-// In-memory grading job tracker — keyed by "exam_<id>" or "assignment_<id>"
+// In-memory grading job tracker  -  keyed by "exam_<id>" or "assignment_<id>"
 const gradingJobs = new Map<string, { total: number; done: number; errors: number; inProgress: boolean }>();
 
 // Returns all department names a student has access to (primary + additional)
@@ -36,7 +36,7 @@ async function getStudentFilter(studentId: string): Promise<{ depts: string[]; y
 const app = express();
 const PORT = 3000;
 
-// Explicit CORS policy — restricts cross-origin requests to the configured frontend origin
+// Explicit CORS policy  -  restricts cross-origin requests to the configured frontend origin
 app.use(cors({ origin: process.env.FRONTEND_URL ?? true, credentials: true }));
 
 if (!process.env.JWT_SECRET) {
@@ -133,7 +133,7 @@ function authenticateToken(req: any, res: any, next: any) {
   });
 }
 
-// Like authenticateToken but never blocks — sets req.user if token valid, otherwise continues as unauthenticated
+// Like authenticateToken but never blocks  -  sets req.user if token valid, otherwise continues as unauthenticated
 function optionalAuth(req: any, _res: any, next: any) {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -143,7 +143,7 @@ function optionalAuth(req: any, _res: any, next: any) {
   next();
 }
 
-// Super admin — only allows tokens with role: "super_admin"
+// Super admin  -  only allows tokens with role: "super_admin"
 function authenticateSuperAdmin(req: any, res: any, next: any) {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -252,7 +252,7 @@ app.post("/api/auth/student-register", authLimiter, async (req, res) => {
   }
 });
 
-// Student Login — school + registration number + password
+// Student Login  -  school + registration number + password
 app.post("/api/auth/student-login", authLimiter, async (req, res) => {
   const { regNumber, password, schoolId } = req.body;
 
@@ -276,7 +276,7 @@ app.post("/api/auth/student-login", authLimiter, async (req, res) => {
     }
 
     if (!student.passwordHash) {
-      // Account exists but was never given a password — treat as invalid credentials
+      // Account exists but was never given a password  -  treat as invalid credentials
       recordFailedLogin(normalizedReg);
       return res.status(401).json({ error: "Invalid registration number or password." });
     }
@@ -368,7 +368,7 @@ app.post("/api/auth/student-migrate", authLimiter, async (req, res) => {
   }
 });
 
-// Forced password change — requires a valid token (even mustChangePassword=true).
+// Forced password change  -  requires a valid token (even mustChangePassword=true).
 // The _allowMustChange flag on the request bypasses the authenticateToken guard.
 app.post(
   "/api/auth/student-change-password",
@@ -465,7 +465,7 @@ app.post("/api/auth/student-get-security-question", strictLimiter, async (req, r
   }
 });
 
-// Forgot password — verify security answer and set a new password
+// Forgot password  -  verify security answer and set a new password
 app.post("/api/auth/student-forgot-password", strictLimiter, async (req, res) => {
   const { regNumber, securityAnswer, newPassword, confirmPassword } = req.body;
   if (!regNumber || !securityAnswer || !newPassword || !confirmPassword) {
@@ -548,13 +548,13 @@ app.post("/api/auth/student-fix-year", strictLimiter, async (req, res) => {
       return res.status(400).json({ error: "Incorrect registration number or security answer." });
     }
 
-    // Compare security answers — support both bcrypt hashes and legacy plaintext (auto-upgrade)
+    // Compare security answers  -  support both bcrypt hashes and legacy plaintext (auto-upgrade)
     const normalizedInput = securityAnswer.trim().toLowerCase();
     let answerMatches = false;
     if (student.securityAnswer.startsWith("$2")) {
       answerMatches = await bcrypt.compare(normalizedInput, student.securityAnswer);
     } else {
-      // Legacy plaintext — compare and upgrade on success
+      // Legacy plaintext  -  compare and upgrade on success
       answerMatches = student.securityAnswer.toLowerCase().trim() === normalizedInput;
       if (answerMatches) {
         const hashed = await bcrypt.hash(normalizedInput, 10);
@@ -733,7 +733,7 @@ app.post("/api/auth/lecturer-login", authLimiter, async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// PUBLIC SCHOOLS LIST (no auth — used for registration dropdowns)
+// PUBLIC SCHOOLS LIST (no auth  -  used for registration dropdowns)
 // -------------------------------------------------------------
 
 app.get("/api/schools", async (_req, res) => {
@@ -938,7 +938,7 @@ app.get("/api/school/credits", authenticateToken, requireSchoolAdmin, async (req
 
 
 // -------------------------------------------------------------
-// PUBLIC METADATA (no auth — safe preview data only)
+// PUBLIC METADATA (no auth  -  safe preview data only)
 // -------------------------------------------------------------
 
 app.get("/api/public/quiz/:id", async (req, res) => {
@@ -1152,7 +1152,7 @@ app.delete("/api/notes/:id", authenticateToken, async (req: any, res) => {
   }
 });
 
-// Parse DOCX → HTML (lecturer only) — client converts HTML→Markdown with turndown
+// Parse DOCX → HTML (lecturer only)  -  client converts HTML→Markdown with turndown
 app.post("/api/notes/parse-docx", authenticateToken, upload.single("file"), async (req: any, res) => {
   if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
@@ -1218,17 +1218,17 @@ app.post("/api/quizzes/parse-questions", authenticateToken, upload.single("file"
     const nvidia = getNvidiaClient();
     const prompt = `You are an expert MCQ question parser. Extract ALL multiple-choice questions from the text and return a JSON array.
 
-OPTION PREFIX STRIPPING — remove ANY of these label styles from the start of each option, then store only the content:
+OPTION PREFIX STRIPPING  -  remove ANY of these label styles from the start of each option, then store only the content:
   Uppercase:  A.  B.  C.  D.   |  A)  B)  C)  D)   |  (A)  (B)  (C)  (D)   |  A:  B:  C:  D:   |  [A]  [B]  [C]  [D]
   Lowercase:  a.  b.  c.  d.   |  a)  b)  c)  d)   |  (a)  (b)  (c)  (d)   |  a:  b:  c:  d:   |  [a]  [b]  [c]  [d]
   Roman:      i.  ii.  iii.  iv.  (treat as options 1-4 in order)
   Numeric:    1.  2.  3.  4.   |  1)  2)  3)  4)    (when used as option labels, not question numbers)
 
-CORRECT ANSWER DETECTION — detect the answer from ANY of these patterns (case-insensitive):
+CORRECT ANSWER DETECTION  -  detect the answer from ANY of these patterns (case-insensitive):
   - "Answer: A"  /  "Answer: a"  /  "Ans: B"  /  "ANS: C"  /  "Correct: d"  /  "Key: A"
   - "The answer is A"  /  "The correct answer is b"  /  "Answer = C"
   - A lone letter (A/B/C/D or a/b/c/d) on its own line immediately after the options
-  - An asterisk (*) before or after an option label, e.g. "*A." or "A*" — that option is correct
+  - An asterisk (*) before or after an option label, e.g. "*A." or "A*"  -  that option is correct
   - The word "ANSWER" or "ANS" followed by any separator then a letter
 
 RULES:
@@ -1236,7 +1236,7 @@ RULES:
 - "correctOption" must EXACTLY match one of the cleaned strings in the "options" array.
 - If no answer can be detected, choose the most plausible option.
 - Ignore page headers, footers, course codes, and instructor names.
-- Return ONLY a valid JSON array — no markdown, no explanation, no extra text.
+- Return ONLY a valid JSON array  -  no markdown, no explanation, no extra text.
 
 FORMAT:
 [{"text":"...","options":["...","...","...","..."],"correctOption":"..."}]
@@ -1254,7 +1254,7 @@ Input style 2 (uppercase paren, asterisk):
 B) Computer Power Unit
 C) Core Processing Unit
 D) Central Power Utility
-(no answer line — asterisk marks correct)
+(no answer line  -  asterisk marks correct)
 
 Both produce the same JSON shape with cleaned option text and matching correctOption.
 
@@ -1506,7 +1506,7 @@ app.post("/api/quiz/submit", authenticateToken, async (req: any, res) => {
       },
     });
 
-    // Ownership check — prevent IDOR
+    // Ownership check  -  prevent IDOR
     if (attempt && attempt.studentId !== req.user.id) {
       return res.status(404).json({ error: "Quiz attempt not found" });
     }
@@ -1567,7 +1567,7 @@ app.post("/api/quiz/submit", authenticateToken, async (req: any, res) => {
 
     finalScore = questions.length > 0 ? (correctCount / questions.length) * 100 : 0;
 
-    // Update attempt — include violation count from client if provided
+    // Update attempt  -  include violation count from client if provided
     const violationsFromClient = typeof req.body.violations === "number" ? Math.max(0, Math.min(req.body.violations, 100)) : undefined;
     const updatedAttempt = await prisma.studentAttempt.update({
       where: { id: attemptId },
@@ -2052,7 +2052,7 @@ app.patch("/api/attempts/:id/score", authenticateToken, async (req: any, res) =>
 });
 
 // -------------------------------------------------------------
-// EXAM API — doc upload, student submission, AI grading
+// EXAM API  -  doc upload, student submission, AI grading
 // -------------------------------------------------------------
 
 function getNvidiaClient() {
@@ -2111,7 +2111,7 @@ STUDENT: ${studentName}
 STUDENT'S ANSWERS:
 ${studentAnswers}
 
-For each question below, find the student's answer (by question label) and estimate how much of the model answer they captured as a similarity percentage (0–100). Be fair — assess meaning, not exact wording.
+For each question below, find the student's answer (by question label) and estimate how much of the model answer they captured as a similarity percentage (0–100). Be fair  -  assess meaning, not exact wording.
 
 ${keyItems.map((q) => `${q.qLabel} (${q.marks} mark${q.marks !== 1 ? "s" : ""})\nModel answer: ${q.answer}`).join("\n\n")}
 
@@ -2145,13 +2145,13 @@ Return ONLY valid JSON, no other text:
         });
         const score = breakdown.reduce((s, b) => s + b.awarded, 0);
         const breakdownText = breakdown
-          .map((b) => `${b.qLabel}: ${b.awarded}/${b.max} marks (${b.sim}% match) — ${b.comment}`)
+          .map((b) => `${b.qLabel}: ${b.awarded}/${b.max} marks (${b.sim}% match)  -  ${b.comment}`)
           .join("\n");
         const feedback = `${String(parsed.overall_feedback ?? "")}\n\nBreakdown:\n${breakdownText}`;
         return { score, totalMarks, feedback };
       }
 
-      // AI gave unexpected format — return 0 with correct totalMarks so display stays marks-based
+      // AI gave unexpected format  -  return 0 with correct totalMarks so display stays marks-based
       return { score: 0, totalMarks, feedback: "Auto-grading response was in an unexpected format. Please try grading again." };
     }
   }
@@ -2231,7 +2231,7 @@ Respond with ONLY valid JSON:
       });
       const score = breakdown.reduce((s, b) => s + b.awarded, 0);
       const breakdownText = breakdown
-        .map((b) => `Q${b.q}: ${b.awarded}/${b.max} marks (${b.sim}% match) — ${b.comment}`)
+        .map((b) => `Q${b.q}: ${b.awarded}/${b.max} marks (${b.sim}% match)  -  ${b.comment}`)
         .join("\n");
       const feedback = `${String(parsed.overall_feedback ?? "")}\n\nBreakdown:\n${breakdownText}`;
       return { score, totalMarks, feedback };
@@ -2374,7 +2374,7 @@ app.get("/api/exams/:id", authenticateToken, async (req: any, res) => {
   }
 });
 
-// Upload answer key (lecturer only — must own the exam)
+// Upload answer key (lecturer only  -  must own the exam)
 app.post("/api/exams/:id/answer-key", authenticateToken, upload.single("file"), async (req: any, res) => {
   if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
   try {
@@ -2538,7 +2538,7 @@ app.post("/api/exams/:id/grade", authenticateToken, async (req: any, res) => {
     gradingJobs.set(jobKey, { total: ungraded.length, done: 0, errors: 0, inProgress: true });
     res.status(202).json({ started: true, total: ungraded.length });
 
-    // Run in background — do not await
+    // Run in background  -  do not await
     (async () => {
       const job = gradingJobs.get(jobKey)!;
       for (const submission of ungraded) {
@@ -2811,7 +2811,7 @@ app.post("/api/assignments/:id/grade", authenticateToken, async (req: any, res) 
     gradingJobs.set(jobKey, { total: ungraded.length, done: 0, errors: 0, inProgress: true });
     res.status(202).json({ started: true, total: ungraded.length });
 
-    // Run in background — do not await
+    // Run in background  -  do not await
     (async () => {
       const job = gradingJobs.get(jobKey)!;
       for (const submission of ungraded) {
@@ -2852,7 +2852,7 @@ app.get("/api/student/assignment-submissions", authenticateToken, async (req: an
 // -------------------------------------------------------------
 // USER AVATAR / PROFILE PHOTO API
 // -------------------------------------------------------------
-// AVATAR — stored in DB (Turso), not filesystem (read-only on Vercel)
+// AVATAR  -  stored in DB (Turso), not filesystem (read-only on Vercel)
 // -------------------------------------------------------------
 
 // Save Avatar Base64
@@ -2881,7 +2881,7 @@ app.post("/api/user/avatar", authenticateToken, async (req: any, res) => {
   }
 });
 
-// Fetch Avatar Base64 — authenticated; users can only fetch their own avatar
+// Fetch Avatar Base64  -  authenticated; users can only fetch their own avatar
 app.get("/api/user/avatar/:role/:id", authenticateToken, async (req: any, res) => {
   const { role, id } = req.params;
   if (role !== "lecturer" && role !== "student") {
@@ -2904,7 +2904,7 @@ app.get("/api/user/avatar/:role/:id", authenticateToken, async (req: any, res) =
 });
 
 // -------------------------------------------------------------
-// QUIZ — EDIT / DUPLICATE / ANALYTICS / LEADERBOARD
+// QUIZ  -  EDIT / DUPLICATE / ANALYTICS / LEADERBOARD
 // -------------------------------------------------------------
 
 app.put("/api/quizzes/:id", authenticateToken, async (req: any, res) => {
@@ -3160,7 +3160,7 @@ app.post("/api/ai/generate-questions", authenticateToken, async (req: any, res) 
     const nvidia = getNvidiaClient();
     const prompt = `You are an academic question setter. Generate exactly ${n} multiple-choice questions about: "${topic.trim()}"${courseContext ? ` in the context of ${courseContext}` : ""}.
 
-Return ONLY a JSON array — no markdown, no commentary. Each element must have:
+Return ONLY a JSON array  -  no markdown, no commentary. Each element must have:
 - "text": the question text (string)
 - "options": array of exactly 4 answer strings labeled like "A. ...", "B. ...", "C. ...", "D. ..."
 - "correctOption": the full text of the correct option (must match one of the 4 options exactly)
@@ -3184,7 +3184,7 @@ Example format:
     } catch {
       // Try to extract JSON array
       const match = jsonStr.match(/\[[\s\S]*\]/);
-      if (!match) return res.status(502).json({ error: "AI returned invalid JSON — please try again" });
+      if (!match) return res.status(502).json({ error: "AI returned invalid JSON  -  please try again" });
       questions = JSON.parse(match[0]);
     }
     if (!Array.isArray(questions)) return res.status(502).json({ error: "AI response was not a list" });
@@ -3197,7 +3197,7 @@ Example format:
     return res.json(cleaned);
   } catch (err: any) {
     console.error("AI question generation error:", err);
-    return res.status(500).json({ error: "AI generation failed — check NVIDIA_API_KEY" });
+    return res.status(500).json({ error: "AI generation failed  -  check NVIDIA_API_KEY" });
   }
 });
 
@@ -3392,7 +3392,7 @@ app.get("/api/notifications", authenticateToken, async (req: any, res) => {
       if (gradedToday > 0) {
         notifications.push({ id: "grading_done", type: "grade", icon: "grade",
           title: `${gradedToday} submission${gradedToday > 1 ? "s" : ""} graded today`,
-          body: "AI grading complete — check gradebook",
+          body: "AI grading complete  -  check gradebook",
           time: new Date().toISOString() });
       }
     }
@@ -3802,7 +3802,7 @@ app.get("/api/results/quiz/:attemptId", authenticateToken, async (req: any, res)
   } catch { return res.status(500).json({ error: "Failed to fetch result" }); }
 });
 
-// Global JSON error handler — 4-param signature required for Express error middleware
+// Global JSON error handler  -  4-param signature required for Express error middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("Unhandled error:", err);
   // Never expose internal error messages (stack traces, DB schema, file paths) to clients

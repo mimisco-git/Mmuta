@@ -10,14 +10,14 @@
 @variant dark (&:where(.dark, .dark *));
 
 /* ═══════════════════════════════════════════════════════
-   Mmuta — Apple Liquid Glass Design System
+   Mmuta  -  Apple Liquid Glass Design System
    The complete exam & learning platform for Nigerian schools
    ═══════════════════════════════════════════════════════ */
 
 :root {
   color-scheme: light dark;
 
-  /* Muted brand palette — slightly desaturated like Apple */
+  /* Muted brand palette  -  slightly desaturated like Apple */
   --brand:          #1a7fe8;
   --brand-mid:      #1e6fd4;
   --brand-end:      #1e55d4;
@@ -131,7 +131,7 @@
 ::-webkit-scrollbar-thumb:hover { background: rgba(10,148,99,0.50); }
 
 /* ─────────────────────────────────────────────────────
-   APPLE WINDOW MATERIAL — main content background
+   APPLE WINDOW MATERIAL  -  main content background
    Not flat white. Layered tint + noise like macOS.
 ───────────────────────────────────────────────────── */
 
@@ -151,7 +151,7 @@
 }
 
 /* ─────────────────────────────────────────────────────
-   APPLE HEADER BAR — tab bar / title bar
+   APPLE HEADER BAR  -  tab bar / title bar
 ───────────────────────────────────────────────────── */
 
 .apple-header-bar {
@@ -165,7 +165,7 @@
 
 /* ─────────────────────────────────────────────────────
    APPLE SIDEBAR MATERIAL
-   Melts into the window — more transparent, softer edge.
+   Melts into the window  -  more transparent, softer edge.
 ───────────────────────────────────────────────────── */
 
 .apple-sidebar {
@@ -238,11 +238,11 @@
 }
 .dark .apple-card::after { opacity: 0.025; }
 
-/* Card header — sits above the noise/specular layers */
+/* Card header  -  sits above the noise/specular layers */
 .apple-card > * { position: relative; z-index: 2; }
 
 /* ─────────────────────────────────────────────────────
-   ELEVATED PANEL (higher z than card — modals, drawers)
+   ELEVATED PANEL (higher z than card  -  modals, drawers)
 ───────────────────────────────────────────────────── */
 
 .apple-panel {
@@ -293,7 +293,7 @@
 }
 
 /* ─────────────────────────────────────────────────────
-   APPLE PRIMARY BUTTON — carved, depth, spring physics
+   APPLE PRIMARY BUTTON  -  carved, depth, spring physics
 ───────────────────────────────────────────────────── */
 
 .apple-btn-primary {
@@ -335,7 +335,7 @@
 .apple-btn-primary:disabled { opacity: 0.52; cursor: not-allowed; }
 
 /* ─────────────────────────────────────────────────────
-   APPLE SECONDARY BUTTON — glass, subtle
+   APPLE SECONDARY BUTTON  -  glass, subtle
 ───────────────────────────────────────────────────── */
 
 .apple-btn-secondary {
@@ -404,7 +404,7 @@
 .apple-btn-danger:active:not(:disabled) { transform: scale(0.986); transition-duration: 80ms; }
 
 /* ─────────────────────────────────────────────────────
-   GRADIENT BUTTON (legacy CTA — login page)
+   GRADIENT BUTTON (legacy CTA  -  login page)
 ───────────────────────────────────────────────────── */
 
 .btn-gradient {
@@ -446,7 +446,7 @@
 }
 
 /* ─────────────────────────────────────────────────────
-   APPLE FORM INPUT — almost invisible, soft focus
+   APPLE FORM INPUT  -  almost invisible, soft focus
 ───────────────────────────────────────────────────── */
 
 .form-input {
@@ -498,7 +498,7 @@ select.form-input {
 textarea.form-input { resize: none; }
 
 /* ─────────────────────────────────────────────────────
-   PREMIUM INPUT (login page — large, very soft)
+   PREMIUM INPUT (login page  -  large, very soft)
 ───────────────────────────────────────────────────── */
 
 .premium-input {
@@ -592,7 +592,7 @@ select.premium-input {
 .logo-float { animation: logo-float 4.5s ease-in-out infinite; }
 
 /* ─────────────────────────────────────────────────────
-   DASHBOARD PANEL CARD (legacy — some areas still use it)
+   DASHBOARD PANEL CARD (legacy  -  some areas still use it)
 ───────────────────────────────────────────────────── */
 
 .dash-card {
@@ -635,7 +635,7 @@ select.premium-input {
 }
 
 /* ─────────────────────────────────────────────────────
-   DARK MODE — Global Tailwind token overrides
+   DARK MODE  -  Global Tailwind token overrides
 ───────────────────────────────────────────────────── */
 
 .dark body {
@@ -662,7 +662,7 @@ select.premium-input {
 .dark .hover\:bg-slate-100:hover { background-color: rgba(255,255,255,0.07) !important; }
 
 /* ─────────────────────────────────────────────────────
-   APPLE TABLE HEADER — anchored, distinguished
+   APPLE TABLE HEADER  -  anchored, distinguished
 ───────────────────────────────────────────────────── */
 
 .apple-thead {
@@ -727,7 +727,7 @@ select.premium-input {
 }
 
 /* ─────────────────────────────────────────────────────
-   MOBILE — larger card radius, reduced divider noise
+   MOBILE  -  larger card radius, reduced divider noise
 ───────────────────────────────────────────────────── */
 
 @media (max-width: 639px) {
@@ -741,7 +741,7 @@ select.premium-input {
 
 /* ─────────────────────────────────────────────────────
    APPLE FLOATING BOTTOM DOCK (mobile navigation)
-   Floating glass pill — replaces left sidebar on mobile
+   Floating glass pill  -  replaces left sidebar on mobile
 ───────────────────────────────────────────────────── */
 
 .apple-bottom-dock {
@@ -773,7 +773,7 @@ select.premium-input {
 }
 
 /* ─────────────────────────────────────────────────────
-   APPLE EMPTY STATE — large icon + title + explanation
+   APPLE EMPTY STATE  -  large icon + title + explanation
 ───────────────────────────────────────────────────── */
 
 .apple-empty-state {

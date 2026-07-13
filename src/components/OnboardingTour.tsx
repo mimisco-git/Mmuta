@@ -17,18 +17,18 @@ const STUDENT_STEPS: Step[] = [
   { icon: "📚", title: "Your courses are here", body: "The sidebar shows every course your department is enrolled in. Tap a course to jump straight to its notes, quizzes, or exams." },
   { icon: "🧠", title: "Take quizzes & exams", body: "Quizzes are auto-graded the moment you submit. Written exams are AI-graded by your lecturer. You can see your score and feedback in My Grades." },
   { icon: "📊", title: "Track your progress", body: "Open My Grades to see your full grade history, trend chart, and overall academic standing. Download a PDF report any time." },
-  { icon: "📅", title: "Never miss a deadline", body: "The Calendar tab shows every upcoming quiz, exam, and assignment due date across all your courses — with countdown badges." },
+  { icon: "📅", title: "Never miss a deadline", body: "The Calendar tab shows every upcoming quiz, exam, and assignment due date across all your courses  -  with countdown badges." },
   { icon: "💬", title: "Ask questions", body: "The Discussions tab is your course forum. Post questions, get answers from classmates or your lecturer, right inside the portal." },
-  { icon: "🔒", title: "Secure assessments", body: "Quizzes run in a secure proctored mode. Switching tabs or leaving the window will be logged. Stay focused — three violations auto-submit your attempt." },
+  { icon: "🔒", title: "Secure assessments", body: "Quizzes run in a secure proctored mode. Switching tabs or leaving the window will be logged. Stay focused  -  three violations auto-submit your attempt." },
 ];
 
 const LECTURER_STEPS: Step[] = [
   { icon: "🎓", title: "Manage your courses", body: "Create courses, set target year levels, and assign departments. Students in the matching dept/year automatically see your content." },
   { icon: "🧪", title: "Deploy quizzes with AI", body: "Type a topic and let the AI generate ready-to-use MCQ questions. Edit, reorder, or pull questions from your personal Question Bank." },
   { icon: "📝", title: "Post exams & assignments", body: "Upload a question document, set an answer key, and the AI grades all submissions in one click. You can still override any score manually." },
-  { icon: "📈", title: "Analytics at a glance", body: "The Analytics tab shows average scores, pass rates, and per-course performance bars — updated in real time as submissions come in." },
+  { icon: "📈", title: "Analytics at a glance", body: "The Analytics tab shows average scores, pass rates, and per-course performance bars  -  updated in real time as submissions come in." },
   { icon: "💬", title: "Discussion boards", body: "Students post questions under each course. You can pin important threads, reply from the lecturer side, and keep discourse in one place." },
-  { icon: "✏️", title: "Rich Markdown notes", body: "The notes editor supports full Markdown with live preview. Use $...$ for inline math and $$...$$ for display equations — perfect for STEM." },
+  { icon: "✏️", title: "Rich Markdown notes", body: "The notes editor supports full Markdown with live preview. Use $...$ for inline math and $$...$$ for display equations  -  perfect for STEM." },
 ];
 
 export default function OnboardingTour({ role, onDone }: Props) {

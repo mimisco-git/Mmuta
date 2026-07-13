@@ -121,7 +121,7 @@ export default function NotificationBell({ token, onRequestPush }: Props) {
             width: Math.min(370, window.innerWidth - 16),
           }}
         >
-          {/* Fully opaque panel — no backdrop-blur, no transparency */}
+          {/* Fully opaque panel  -  no backdrop-blur, no transparency */}
           <div
             className="rounded-[18px] overflow-hidden bg-white dark:bg-[#232325]"
             style={{ boxShadow: "0 0 0 1px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.14), 0 24px 48px rgba(0,0,0,0.10)" }}

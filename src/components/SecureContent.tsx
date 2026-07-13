@@ -5,7 +5,7 @@ interface Props {
   regNumber?: string;
   children: React.ReactNode;
   className?: string;
-  /** Watermark text colour — "light" for dark backgrounds, "dark" for light backgrounds */
+  /** Watermark text colour  -  "light" for dark backgrounds, "dark" for light backgrounds */
   mode?: "light" | "dark";
 }
 
@@ -14,7 +14,7 @@ interface Props {
  *  - Text selection + copy/cut blocked
  *  - Right-click suppressed
  *  - Keyboard shortcuts blocked (Ctrl+C, Ctrl+A, Ctrl+X, Ctrl+U, Ctrl+P, Ctrl+S, F12, PrintScreen)
- *  - Diagonal watermark with student identity (screenshot deterrent — traceable if shared)
+ *  - Diagonal watermark with student identity (screenshot deterrent  -  traceable if shared)
  *
  * NOTE: OS-level screenshots cannot be fully prevented by any browser API.
  * The watermark ensures any shared screenshot reveals the student's identity.
@@ -86,7 +86,7 @@ export default function SecureContent({ studentName, regNumber, children, classN
     >
       {children}
 
-      {/* Watermark overlay — pointer-events:none so clicks pass through */}
+      {/* Watermark overlay  -  pointer-events:none so clicks pass through */}
       <div
         aria-hidden="true"
         style={{

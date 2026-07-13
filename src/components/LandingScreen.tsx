@@ -134,7 +134,7 @@ export default function LandingScreen({
   }, [selectedSchoolId]);
 
   /* ─── handlers ───────────────────────────────────────── */
-  // Safe JSON parser — prevents raw "Unexpected token" errors reaching the UI
+  // Safe JSON parser  -  prevents raw "Unexpected token" errors reaching the UI
   const apiJSON = async (res: Response) => {
     const text = await res.text();
     try { return JSON.parse(text); } catch { throw new Error("Server error. Please try again."); }
@@ -334,7 +334,7 @@ export default function LandingScreen({
   return (
     <div className="fixed inset-0 overflow-hidden font-sans antialiased">
 
-      {/* ══ LAYER 0 — wallpaper image ══ */}
+      {/* ══ LAYER 0  -  wallpaper image ══ */}
       <motion.div
         className="absolute inset-0"
         initial={{ opacity: alreadyBooted ? 1 : 0 }}
@@ -346,7 +346,7 @@ export default function LandingScreen({
         <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.38)" }} />
       </motion.div>
 
-      {/* ══ LAYER 1 — boot screen ══ */}
+      {/* ══ LAYER 1  -  boot screen ══ */}
       <AnimatePresence>
         {phase === "boot" && (
           <motion.div
@@ -387,7 +387,7 @@ export default function LandingScreen({
         )}
       </AnimatePresence>
 
-      {/* ══ LAYER 2 — macOS login content ══ */}
+      {/* ══ LAYER 2  -  macOS login content ══ */}
       <AnimatePresence>
         {phase === "login" && (
           <motion.div
@@ -420,7 +420,7 @@ export default function LandingScreen({
             {/* ── main content ── */}
             <div className="absolute inset-0 flex flex-col items-center justify-center px-4 gap-[52px]">
 
-              {/* Logo — floats gently at rest, shrinks when form opens */}
+              {/* Logo  -  floats gently at rest, shrinks when form opens */}
               <motion.div
                 className="flex flex-col items-center gap-4 pointer-events-none select-none"
                 animate={{
@@ -460,7 +460,7 @@ export default function LandingScreen({
                 >Teach. Test. Trust.</motion.p>
               </motion.div>
 
-              {/* Interactive zone — circles or inline form */}
+              {/* Interactive zone  -  circles or inline form */}
               <AnimatePresence mode="wait">
 
                 {/* SUPER ADMIN LOGIN */}
@@ -517,7 +517,7 @@ export default function LandingScreen({
                   </motion.div>
                 )}
 
-                {/* USER SELECTION — two circles */}
+                {/* USER SELECTION  -  two circles */}
                 {!showSuperAdminLogin && selectedUser === null && (
                   <motion.div
                     key="user-select"
@@ -592,7 +592,7 @@ export default function LandingScreen({
                   </motion.div>
                 )}
 
-                {/* INLINE FORM — springs in where the circles were */}
+                {/* INLINE FORM  -  springs in where the circles were */}
                 {!showSuperAdminLogin && selectedUser !== null && (
                   <motion.div
                     key="form-view"
@@ -605,7 +605,7 @@ export default function LandingScreen({
                     {/* Glass panel */}
                     <div className="rounded-[22px] overflow-hidden" style={{ background: "rgba(8,13,10,0.78)", backdropFilter: "blur(56px) saturate(200%)", WebkitBackdropFilter: "blur(56px) saturate(200%)", border: "1px solid rgba(255,255,255,0.11)", boxShadow: "0 32px 72px rgba(0,0,0,0.75), 0 1px 0 rgba(255,255,255,0.10) inset, 0 -1px 0 rgba(0,0,0,0.20) inset" }}>
 
-                      {/* Panel header — pulsing dot + back */}
+                      {/* Panel header  -  pulsing dot + back */}
                       <motion.div
                         className="flex items-center justify-between px-6 pt-5 pb-0"
                         initial={{ opacity: 0, y: -6 }}

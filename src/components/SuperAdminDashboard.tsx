@@ -291,7 +291,7 @@ export default function SuperAdminDashboard({ token, user, onLogout }: SuperAdmi
                       <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">School</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Code</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Students</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Lecturers</th>
+                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Teachers</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Courses</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Credits</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Status</th>
@@ -372,10 +372,10 @@ export default function SuperAdminDashboard({ token, user, onLogout }: SuperAdmi
             <h2 className="font-bold text-slate-800 dark:text-white text-lg">Platform Overview</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
-                { icon: Building2, label: "Total Schools", value: stats?.totalSchools ?? "—", color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/20" },
-                { icon: Users, label: "Total Students", value: stats?.totalStudents ?? "—", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20" },
-                { icon: GraduationCap, label: "Total Lecturers", value: stats?.totalLecturers ?? "—", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-900/20" },
-                { icon: BookOpen, label: "Total Exams", value: stats?.totalExams ?? "—", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/20" },
+                { icon: Building2, label: "Total Schools", value: stats?.totalSchools ?? " - ", color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/20" },
+                { icon: Users, label: "Total Students", value: stats?.totalStudents ?? " - ", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20" },
+                { icon: GraduationCap, label: "Total Teachers", value: stats?.totalLecturers ?? " - ", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-900/20" },
+                { icon: BookOpen, label: "Total Exams", value: stats?.totalExams ?? " - ", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/20" },
               ].map(({ icon: Icon, label, value, color, bg }) => (
                 <div key={label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 flex flex-col gap-3">
                   <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center`}>
@@ -397,7 +397,7 @@ export default function SuperAdminDashboard({ token, user, onLogout }: SuperAdmi
                     <div key={s.id} className="flex items-center gap-3 text-sm">
                       <span className="font-mono text-xs bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded w-16 text-center shrink-0">{s.code}</span>
                       <span className="font-medium text-slate-700 dark:text-slate-300 flex-1 truncate">{s.name}</span>
-                      <span className="text-slate-400 text-xs">{s._count?.students ?? 0} students · {s._count?.lecturers ?? 0} lecturers</span>
+                      <span className="text-slate-400 text-xs">{s._count?.students ?? 0} students · {s._count?.lecturers ?? 0} teachers</span>
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${s.isActive ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-slate-100 text-slate-400 dark:bg-slate-700"}`}>
                         {s.isActive ? "ON" : "OFF"}
                       </span>

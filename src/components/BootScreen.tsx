@@ -24,7 +24,7 @@ export default function BootScreen({ onDone }: Props) {
   useEffect(() => {
     if (!barVisible) return;
 
-    const DURATION = 3200; // ms — total fill time
+    const DURATION = 3200; // ms  -  total fill time
 
     const tick = (now: number) => {
       if (startRef.current === null) startRef.current = now;
@@ -94,7 +94,7 @@ export default function BootScreen({ onDone }: Props) {
               />
             </motion.div>
 
-            {/* Progress bar — macOS proportions */}
+            {/* Progress bar  -  macOS proportions */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: barVisible ? 1 : 0 }}

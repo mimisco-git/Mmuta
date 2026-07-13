@@ -1,322 +1,511 @@
-import { useState } from "react";
-import { Shield, Zap, BarChart2, CheckCircle, ChevronRight, Menu, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { Sphere, MeshDistortMaterial } from "@react-three/drei";
+import { motion, useScroll, useTransform, useInView } from "motion/react";
+import Lenis from "@studio-freight/lenis";
+import {
+  Shield, Zap, BarChart2, CheckCircle, ArrowRight,
+  Menu, X, BookOpen, Users, Award, ChevronDown,
+} from "lucide-react";
+import * as THREE from "three";
 
 interface LandingPageProps {
   onGetStarted?: () => void;
 }
 
+// ── 3D floating orb ──────────────────────────────────────────────────────────
+function FloatingOrb() {
+  const meshRef = useRef<THREE.Mesh>(null!);
+  useFrame(({ clock }) => {
+    meshRef.current.rotation.x = clock.getElapsedTime() * 0.12;
+    meshRef.current.rotation.y = clock.getElapsedTime() * 0.18;
+    meshRef.current.position.y = Math.sin(clock.getElapsedTime() * 0.6) * 0.12;
+  });
+  return (
+    <Sphere ref={meshRef} args={[1, 80, 80]}>
+      <MeshDistortMaterial
+        color="#1a7fe8"
+        attach="material"
+        distort={0.38}
+        speed={2.2}
+        roughness={0}
+        metalness={0.1}
+        opacity={0.88}
+        transparent
+      />
+    </Sphere>
+  );
+}
+
+// ── Scroll-in wrapper ─────────────────────────────────────────────────────────
+function FadeUp({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: "-80px" });
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 32 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1], delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+// ── Stat counter ──────────────────────────────────────────────────────────────
+function StatNumber({ to, suffix = "" }: { to: number; suffix?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true });
+  useEffect(() => {
+    if (!inView || !ref.current) return;
+    let start = 0;
+    const step = to / 60;
+    const tick = () => {
+      start = Math.min(start + step, to);
+      if (ref.current) ref.current.textContent = Math.floor(start).toLocaleString() + suffix;
+      if (start < to) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [inView, to, suffix]);
+  return <span ref={ref}>0{suffix}</span>;
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 export default function LandingPage({ onGetStarted }: LandingPageProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
+  const heroY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
 
-  const handleLogin = () => {
+  // Lenis smooth scroll
+  useEffect(() => {
+    const lenis = new Lenis({ lerp: 0.09, smoothWheel: true });
+    const raf = (t: number) => { lenis.raf(t); requestAnimationFrame(raf); };
+    requestAnimationFrame(raf);
+    return () => lenis.destroy();
+  }, []);
+
+  const go = () => {
     if (onGetStarted) { onGetStarted(); return; }
     window.location.href = "/login";
   };
 
+  const navLinks = [
+    { href: "#platform", label: "Platform" },
+    { href: "#how-it-works", label: "How It Works" },
+    { href: "#schools", label: "For Schools" },
+  ];
+
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0a0f1e] text-slate-800 dark:text-slate-100 font-sans">
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 bg-white/90 dark:bg-[#0a0f1e]/90 border-b border-slate-100 dark:border-white/[0.06] backdrop-blur-xl">
-        <div className="max-w-6xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between">
+    <div className="bg-[#03060d] text-white min-h-screen overflow-x-hidden font-sans">
+
+      {/* ── Navbar ── */}
+      <header className="fixed top-0 inset-x-0 z-50">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 h-[62px] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="Mmuta" className="h-8 w-8 rounded-[10px]" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-            <span className="text-[17px] font-black tracking-tight text-slate-900 dark:text-white">Mmuta</span>
+            <div className="w-8 h-8 rounded-[10px] overflow-hidden bg-[#1a7fe8]/10 border border-[#1a7fe8]/20 flex items-center justify-center">
+              <img src="/logo.png" alt="Mmuta" className="w-full h-full object-cover" onError={e => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+                (e.currentTarget.parentElement as HTMLElement).innerHTML = '<span style="color:#1a7fe8;font-weight:900;font-size:13px">M</span>';
+              }} />
+            </div>
+            <span className="text-[16px] font-black tracking-tight">Mmuta</span>
           </div>
 
-          {/* Desktop nav */}
-          <nav className="hidden sm:flex items-center gap-6 text-[13.5px] font-medium text-slate-500 dark:text-slate-400">
-            <a href="#features" className="hover:text-slate-900 dark:hover:text-white transition-colors">Features</a>
-            <a href="#how-it-works" className="hover:text-slate-900 dark:hover:text-white transition-colors">How It Works</a>
-            <a href="#pricing" className="hover:text-slate-900 dark:hover:text-white transition-colors">Pricing</a>
+          <nav className="hidden md:flex items-center gap-8">
+            {navLinks.map(l => (
+              <a key={l.href} href={l.href}
+                className="text-[13.5px] font-medium text-white/50 hover:text-white transition-colors duration-200">
+                {l.label}
+              </a>
+            ))}
           </nav>
 
-          <div className="hidden sm:flex items-center gap-3">
-            <button
-              onClick={handleLogin}
-              className="px-4 py-2 text-[13.5px] font-semibold text-[#1a7fe8] hover:text-[#1568cc] transition-colors cursor-pointer"
-            >
+          <div className="hidden md:flex items-center gap-3">
+            <button onClick={go}
+              className="px-4 py-2 text-[13px] font-semibold text-white/60 hover:text-white transition-colors cursor-pointer">
               Sign In
             </button>
-            <button
-              onClick={handleLogin}
-              className="px-5 py-2 text-[13.5px] font-semibold rounded-[10px] text-white transition-all cursor-pointer"
-              style={{ background: "linear-gradient(135deg, #1a7fe8 0%, #0f5fbf 100%)" }}
-            >
+            <button onClick={go}
+              className="px-5 py-2.5 text-[13px] font-bold rounded-full text-white cursor-pointer transition-all hover:brightness-110 active:scale-[0.98]"
+              style={{ background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>
               Get Started
             </button>
           </div>
 
-          {/* Mobile menu toggle */}
-          <button className="sm:hidden p-2 cursor-pointer text-slate-500" onClick={() => setMenuOpen(v => !v)}>
+          <button className="md:hidden p-2 text-white/60 cursor-pointer" onClick={() => setMenuOpen(v => !v)}>
             {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
 
+        {/* Blur bar */}
+        <div className="absolute inset-0 -z-10 bg-[#03060d]/80 backdrop-blur-xl border-b border-white/[0.04]" />
+
         {/* Mobile menu */}
         {menuOpen && (
-          <div className="sm:hidden border-t border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#0a0f1e] px-5 py-4 space-y-3">
-            {["#features", "#how-it-works", "#pricing"].map(href => (
-              <a key={href} href={href} onClick={() => setMenuOpen(false)}
-                className="block text-[14px] font-medium text-slate-600 dark:text-slate-300 capitalize">
-                {href.replace("#", "").replace(/-/g, " ")}
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+            className="md:hidden absolute top-full inset-x-0 bg-[#080d1a]/95 backdrop-blur-xl border-b border-white/[0.06] px-5 py-5 space-y-4">
+            {navLinks.map(l => (
+              <a key={l.href} href={l.href} onClick={() => setMenuOpen(false)}
+                className="block text-[15px] font-medium text-white/70 hover:text-white">
+                {l.label}
               </a>
             ))}
-            <button onClick={handleLogin} className="w-full mt-2 py-2.5 text-[14px] font-semibold rounded-[10px] text-white cursor-pointer" style={{ background: "linear-gradient(135deg, #1a7fe8 0%, #0f5fbf 100%)" }}>
+            <button onClick={go}
+              className="w-full py-3 text-[14px] font-bold rounded-full text-white cursor-pointer"
+              style={{ background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>
               Get Started Free
             </button>
-          </div>
+          </motion.div>
         )}
       </header>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-indigo-50/40 dark:from-[#0d1530] dark:via-[#0a0f1e] dark:to-[#0d1530]" />
-        <div className="absolute -top-40 -right-40 w-[600px] h-[600px] rounded-full opacity-10 blur-3xl" style={{ background: "radial-gradient(circle, #1a7fe8, transparent)" }} />
+      {/* ── Hero ── */}
+      <section ref={heroRef} className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden pt-16">
 
-        <div className="relative max-w-6xl mx-auto px-5 sm:px-8 pt-20 pb-24 text-center">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800/40 text-[12px] font-semibold text-blue-600 dark:text-blue-400 mb-6">
-            <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-            Built for Nigerian Schools
-          </div>
+        {/* Background grid */}
+        <div className="absolute inset-0"
+          style={{
+            backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0)",
+            backgroundSize: "40px 40px",
+          }} />
 
-          <h1 className="text-[40px] sm:text-[56px] font-black leading-[1.08] tracking-tight text-slate-900 dark:text-white mb-5" style={{ textWrap: "balance" } as React.CSSProperties}>
-            Teach. Test. Trust.
-          </h1>
-          <p className="text-[17px] sm:text-[19px] text-slate-500 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10" style={{ textWrap: "balance" } as React.CSSProperties}>
-            One platform for CBT exams, AI grading, and academic results —
-            no more paper scripts, no more WhatsApp-sent results.
+        {/* Glow blobs */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full opacity-[0.07] blur-[120px] pointer-events-none"
+          style={{ background: "radial-gradient(circle, #1a7fe8 0%, #7c3aed 60%, transparent 100%)" }} />
+
+        {/* 3D Orb */}
+        <motion.div style={{ y: heroY, opacity: heroOpacity }}
+          className="absolute right-[5%] top-[12%] w-[340px] h-[340px] sm:w-[520px] sm:h-[520px] opacity-80">
+          <Canvas camera={{ position: [0, 0, 3], fov: 45 }} gl={{ antialias: true, alpha: true }}>
+            <ambientLight intensity={0.6} />
+            <directionalLight position={[5, 5, 5]} intensity={1.2} color="#7c3aed" />
+            <pointLight position={[-5, -5, -5]} intensity={0.8} color="#1a7fe8" />
+            <FloatingOrb />
+          </Canvas>
+        </motion.div>
+
+        {/* Hero text */}
+        <motion.div style={{ y: heroY, opacity: heroOpacity }}
+          className="relative z-10 max-w-7xl mx-auto px-5 sm:px-8 py-24 text-left">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.04] text-[11.5px] font-semibold text-white/50 uppercase tracking-[0.12em] mb-8">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#1a7fe8] animate-pulse" />
+            Built for Schools in Nigeria
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 32 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.2 }}
+            className="text-[52px] sm:text-[72px] lg:text-[88px] font-black leading-[0.95] tracking-[-0.03em] mb-8 max-w-3xl">
+            <span className="block">Teach.</span>
+            <span className="block" style={{ WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text", backgroundImage: "linear-gradient(135deg, #1a7fe8 0%, #7c3aed 50%, #06b6d4 100%)" }}>Test.</span>
+            <span className="block">Trust.</span>
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.35 }}
+            className="text-[17px] sm:text-[19px] text-white/45 max-w-xl leading-relaxed mb-12">
+            One platform for every school. Run secure CBT exams, get instant AI-graded results, and manage students across all your departments.
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.5 }}
+            className="flex flex-col sm:flex-row gap-4">
+            <button onClick={go}
+              className="group flex items-center justify-center gap-2.5 px-8 py-4 text-[15px] font-bold rounded-full text-white cursor-pointer transition-all hover:brightness-110 active:scale-[0.97] shadow-2xl"
+              style={{ background: "linear-gradient(135deg, #1a7fe8 0%, #7c3aed 100%)", boxShadow: "0 0 60px rgba(26,127,232,0.35)" }}>
+              Start for free
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </button>
+            <button
+              onClick={() => document.getElementById("platform")?.scrollIntoView({ behavior: "smooth" })}
+              className="flex items-center justify-center gap-2 px-8 py-4 text-[15px] font-semibold rounded-full border border-white/10 text-white/70 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all cursor-pointer">
+              See the platform
+            </button>
+          </motion.div>
+        </motion.div>
+
+        {/* Scroll cue */}
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/25">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.2em]">Scroll</span>
+          <ChevronDown className="h-4 w-4 animate-bounce" />
+        </motion.div>
+      </section>
+
+      {/* ── School logos ticker ── */}
+      <div className="border-y border-white/[0.05] bg-white/[0.015] py-5 overflow-hidden">
+        <div className="text-center text-[11px] font-semibold uppercase tracking-[0.25em] text-white/25 mb-4">
+          Trusted by schools across Nigeria
+        </div>
+        <div className="flex gap-12 overflow-hidden whitespace-nowrap">
+          <motion.div
+            animate={{ x: ["0%", "-50%"] }} transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+            className="flex gap-12 shrink-0 text-[13px] font-semibold text-white/20">
+            {["Alvan Ikoku", "FUTO", "UNIZIK", "Madonna Univ.", "Renaissance Univ.", "IMO State Polytechnic", "Federal Poly Nekede", "ESUT", "Alvan Ikoku", "FUTO", "UNIZIK", "Madonna Univ.", "Renaissance Univ.", "Federal Poly Nekede", "ESUT"].map((n, i) => (
+              <span key={i}>{n}</span>
+            ))}
+          </motion.div>
+        </div>
+      </div>
+
+      {/* ── Stats ── */}
+      <section className="py-24 max-w-7xl mx-auto px-5 sm:px-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/[0.05] rounded-[24px] overflow-hidden border border-white/[0.05]">
+          {[
+            { to: 12000, suffix: "+", label: "Exams conducted" },
+            { to: 40, suffix: "+", label: "Schools onboarded" },
+            { to: 98, suffix: "%", label: "Grading accuracy" },
+            { to: 4, suffix: " min", label: "Avg. time to results" },
+          ].map(({ to, suffix, label }) => (
+            <FadeUp key={label} className="bg-[#03060d] p-8 sm:p-10 text-center">
+              <div className="text-[40px] sm:text-[52px] font-black tracking-tight mb-1"
+                style={{ WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text", backgroundImage: "linear-gradient(135deg, #fff 40%, rgba(255,255,255,0.4))" }}>
+                <StatNumber to={to} suffix={suffix} />
+              </div>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/35">{label}</p>
+            </FadeUp>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Platform features ── */}
+      <section id="platform" className="py-24 max-w-7xl mx-auto px-5 sm:px-8">
+        <FadeUp className="text-center mb-20">
+          <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#1a7fe8] mb-4">Platform</p>
+          <h2 className="text-[36px] sm:text-[52px] font-black tracking-tight leading-[1.05] mb-5">
+            Every tool your school needs
+          </h2>
+          <p className="text-[16px] text-white/40 max-w-xl mx-auto leading-relaxed">
+            From question upload to AI grading and instant student results. No more paper, no more delays.
           </p>
+        </FadeUp>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <button
-              onClick={handleLogin}
-              className="flex items-center gap-2 px-7 py-3.5 text-[15px] font-bold rounded-[14px] text-white shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02] cursor-pointer"
-              style={{ background: "linear-gradient(135deg, #1a7fe8 0%, #0f5fbf 100%)" }}
-            >
-              Start Free Trial <ChevronRight className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}
-              className="flex items-center gap-2 px-7 py-3.5 text-[15px] font-semibold rounded-[14px] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/[0.10] hover:bg-slate-50 dark:hover:bg-white/[0.05] transition-all cursor-pointer"
-            >
-              See How It Works
-            </button>
-          </div>
-
-          {/* Trust indicators */}
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-10 text-[12px] text-slate-400 dark:text-slate-500">
-            {["Multi-school support", "AI-powered grading", "Secure exam proctoring", "Real-time results"].map(t => (
-              <span key={t} className="flex items-center gap-1.5">
-                <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
-                {t}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Product Pillars */}
-      <section id="features" className="py-20 bg-slate-50 dark:bg-[#0d1224]">
-        <div className="max-w-6xl mx-auto px-5 sm:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-[30px] sm:text-[36px] font-black text-slate-900 dark:text-white tracking-tight mb-3">Everything your school needs</h2>
-            <p className="text-[15.5px] text-slate-500 dark:text-slate-400 max-w-xl mx-auto">From creating questions to delivering instant AI-graded results — all under one roof.</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            {[
-              {
-                icon: Shield,
-                color: "#1a7fe8",
-                bg: "bg-blue-50 dark:bg-blue-900/20",
-                title: "Mmuta Exams",
-                desc: "Conduct fully digital CBT exams and written tests. Built-in proctoring detects tab switching and flags violations automatically.",
-                bullets: ["Multiple-choice & written exams", "Anti-cheat proctoring", "Scheduled availability windows", "Exam PIN system for walk-ins"],
-              },
-              {
-                icon: Zap,
-                color: "#8b5cf6",
-                bg: "bg-violet-50 dark:bg-violet-900/20",
-                title: "Mmuta Grade",
-                desc: "AI reads and marks essay-style exams against your answer key. No more days of manual marking — get results in minutes.",
-                bullets: ["AI grades written answers", "Custom marks allocation", "Detailed per-question feedback", "Bulk grading with progress tracker"],
-              },
-              {
-                icon: BarChart2,
-                color: "#10b981",
-                bg: "bg-emerald-50 dark:bg-emerald-900/20",
-                title: "Mmuta Results",
-                desc: "Students and school admins see results instantly. Share quiz leaderboards, download transcripts, and track performance trends.",
-                bullets: ["Instant score display", "Leaderboard per quiz", "Historical grade reports", "School-wide analytics"],
-              },
-            ].map(({ icon: Icon, color, bg, title, desc, bullets }) => (
-              <div key={title} className="bg-white dark:bg-[#111827] rounded-[20px] border border-slate-100 dark:border-white/[0.06] p-6 space-y-4">
-                <div className={`w-11 h-11 rounded-[12px] ${bg} flex items-center justify-center`}>
-                  <Icon className="h-5 w-5" style={{ color }} strokeWidth={2} />
-                </div>
-                <div>
-                  <h3 className="text-[16px] font-bold text-slate-900 dark:text-white mb-1.5">{title}</h3>
-                  <p className="text-[13.5px] text-slate-500 dark:text-slate-400 leading-relaxed">{desc}</p>
-                </div>
-                <ul className="space-y-2">
-                  {bullets.map(b => (
-                    <li key={b} className="flex items-start gap-2 text-[13px] text-slate-600 dark:text-slate-300">
-                      <CheckCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-emerald-500" />
-                      {b}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section id="how-it-works" className="py-20 bg-white dark:bg-[#0a0f1e]">
-        <div className="max-w-6xl mx-auto px-5 sm:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-[30px] sm:text-[36px] font-black text-slate-900 dark:text-white tracking-tight mb-3">Up and running in minutes</h2>
-            <p className="text-[15.5px] text-slate-500 dark:text-slate-400 max-w-lg mx-auto">No IT team needed. A school admin can set up Mmuta and conduct the first exam the same day.</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-5 relative">
-            {[
-              { step: "1", title: "Register school", desc: "Super admin creates your school profile and issues your unique school code." },
-              { step: "2", title: "Add students & lecturers", desc: "Bulk-import students via CSV or add individually. Lecturers self-register with your school code." },
-              { step: "3", title: "Create & publish exams", desc: "Upload a question paper (PDF or typed), set a time window, and publish to specific courses." },
-              { step: "4", title: "Get instant results", desc: "AI grades written submissions. MCQ exams are marked automatically. Results appear in seconds." },
-            ].map(({ step, title, desc }) => (
-              <div key={step} className="relative">
-                <div className="flex flex-col items-center text-center sm:items-start sm:text-left gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-[15px] font-black text-white flex-shrink-0"
-                    style={{ background: "linear-gradient(135deg, #1a7fe8, #0f5fbf)" }}>
-                    {step}
-                  </div>
-                  <div>
-                    <h4 className="text-[15px] font-bold text-slate-900 dark:text-white mb-1">{title}</h4>
-                    <p className="text-[13.5px] text-slate-500 dark:text-slate-400 leading-relaxed">{desc}</p>
-                  </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {[
+            {
+              icon: Shield,
+              accent: "#1a7fe8",
+              label: "Mmuta Exams",
+              title: "Digital CBT that actually works",
+              desc: "Upload question papers, set time windows, and watch students take secure exams from any device. Tab-switch detection flags every violation.",
+              pills: ["MCQ + written", "Anti-cheat proctoring", "PIN exam entry", "Scheduled windows"],
+              big: false,
+            },
+            {
+              icon: Zap,
+              accent: "#7c3aed",
+              label: "Mmuta Grade",
+              title: "AI reads and marks essays in minutes",
+              desc: "Upload your answer key and marking scheme. The AI grades every written response, allocates marks, and writes feedback — no human effort required.",
+              pills: ["AI essay grading", "Custom mark schemes", "Bulk grading", "Per-question feedback"],
+              big: true,
+            },
+            {
+              icon: BarChart2,
+              accent: "#06b6d4",
+              label: "Mmuta Results",
+              title: "Instant results, zero manual work",
+              desc: "Results appear the moment an exam is graded. Students see scores, teachers see leaderboards, school admins see school-wide analytics.",
+              pills: ["Instant score display", "Leaderboards", "Grade history", "School analytics"],
+              big: false,
+            },
+          ].map(({ icon: Icon, accent, label, title, desc, pills, big }) => (
+            <FadeUp key={label}
+              className={`group relative rounded-[24px] border border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent p-8 flex flex-col gap-6 overflow-hidden transition-all duration-500 hover:border-white/[0.12] hover:from-white/[0.05] ${big ? "lg:row-span-2" : ""}`}>
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"
+                style={{ background: `radial-gradient(600px circle at 50% 0%, ${accent}08, transparent 60%)` }} />
+              <div className="flex items-center justify-between">
+                <span className="text-[10.5px] font-bold uppercase tracking-[0.2em]" style={{ color: accent }}>{label}</span>
+                <div className="w-9 h-9 rounded-[10px] flex items-center justify-center border border-white/[0.07]"
+                  style={{ background: `${accent}15` }}>
+                  <Icon className="h-4 w-4" style={{ color: accent }} />
                 </div>
               </div>
+              <div>
+                <h3 className="text-[22px] font-black tracking-tight mb-3 leading-tight">{title}</h3>
+                <p className="text-[14px] text-white/40 leading-relaxed">{desc}</p>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-auto">
+                {pills.map(p => (
+                  <span key={p} className="px-2.5 py-1 rounded-full text-[11.5px] font-semibold border border-white/[0.07] text-white/40">{p}</span>
+                ))}
+              </div>
+            </FadeUp>
+          ))}
+        </div>
+      </section>
+
+      {/* ── How it works ── */}
+      <section id="how-it-works" className="py-24 border-y border-white/[0.05]">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8">
+          <FadeUp className="text-center mb-20">
+            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#7c3aed] mb-4">Process</p>
+            <h2 className="text-[36px] sm:text-[52px] font-black tracking-tight leading-[1.05]">
+              Up and running in one day
+            </h2>
+          </FadeUp>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { n: "01", title: "Register your school", desc: "Super admin creates your school profile. You get a unique school code your staff uses to join." },
+              { n: "02", title: "Add staff and students", desc: "Import students via CSV or add individually. Teachers register with your school code in seconds." },
+              { n: "03", title: "Create and publish exams", desc: "Upload a PDF question paper or type questions directly. Set a time window and publish to any course." },
+              { n: "04", title: "Get results instantly", desc: "AI grades essays the moment students submit. MCQ exams are auto-scored. Results are live within minutes." },
+            ].map(({ n, title, desc }, i) => (
+              <FadeUp key={n} delay={i * 0.08}>
+                <div className="relative pl-5 border-l border-white/[0.06]">
+                  <div className="text-[11px] font-black tracking-[0.2em] text-white/20 mb-4">{n}</div>
+                  <h4 className="text-[17px] font-bold mb-2 leading-snug">{title}</h4>
+                  <p className="text-[13.5px] text-white/35 leading-relaxed">{desc}</p>
+                </div>
+              </FadeUp>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="py-20 bg-slate-50 dark:bg-[#0d1224]">
-        <div className="max-w-6xl mx-auto px-5 sm:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-[30px] sm:text-[36px] font-black text-slate-900 dark:text-white tracking-tight mb-3">Simple, credit-based pricing</h2>
-            <p className="text-[15.5px] text-slate-500 dark:text-slate-400 max-w-xl mx-auto">Buy exam credits and use them as you go. No monthly subscriptions, no per-seat fees.</p>
-          </div>
+      {/* ── For Schools section (replaces pricing as primary CTA section) ── */}
+      <section id="schools" className="py-24 max-w-7xl mx-auto px-5 sm:px-8">
+        <FadeUp className="text-center mb-16">
+          <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#06b6d4] mb-4">For Schools</p>
+          <h2 className="text-[36px] sm:text-[52px] font-black tracking-tight leading-[1.05] mb-5">
+            Credit-based. Pay as you go.
+          </h2>
+          <p className="text-[16px] text-white/40 max-w-xl mx-auto leading-relaxed">
+            Buy exam credits. Each student exam attempt costs one credit. No monthly fees, no per-seat subscriptions.
+          </p>
+        </FadeUp>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-4xl mx-auto">
-            {[
-              {
-                name: "Starter",
-                price: "₦120,000",
-                period: "/ term",
-                credits: "500 exam credits",
-                description: "For small schools with up to 200 students.",
-                features: ["500 quiz/exam attempts", "All exam types", "AI grading included", "Email support"],
-                highlight: false,
-              },
-              {
-                name: "School",
-                price: "₦350,000",
-                period: "/ term",
-                credits: "2,000 exam credits",
-                description: "For schools with up to 1,000 students.",
-                features: ["2,000 quiz/exam attempts", "All exam types", "AI grading included", "Priority support", "Analytics dashboard"],
-                highlight: true,
-              },
-              {
-                name: "Institution",
-                price: "Custom",
-                period: "",
-                credits: "Unlimited credits",
-                description: "For universities and large institutions.",
-                features: ["Unlimited attempts", "All exam types", "Dedicated account manager", "Custom integrations", "SLA guarantee"],
-                highlight: false,
-              },
-            ].map(({ name, price, period, credits, description, features, highlight }) => (
-              <div key={name} className={`rounded-[20px] border p-6 space-y-5 relative ${
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto mb-16">
+          {[
+            {
+              name: "Starter",
+              credits: "500",
+              price: "120,000",
+              students: "Up to 200 students",
+              features: ["500 exam attempts", "All exam types", "AI grading", "Email support"],
+              highlight: false,
+            },
+            {
+              name: "School",
+              credits: "2,000",
+              price: "350,000",
+              students: "Up to 1,000 students",
+              features: ["2,000 exam attempts", "All exam types", "AI grading", "Priority support", "Analytics"],
+              highlight: true,
+            },
+            {
+              name: "Institution",
+              credits: "Unlimited",
+              price: "Custom",
+              students: "Unlimited students",
+              features: ["Unlimited attempts", "All exam types", "AI grading", "Dedicated manager", "SLA"],
+              highlight: false,
+            },
+          ].map(({ name, credits, price, students, features, highlight }) => (
+            <FadeUp key={name}>
+              <div className={`h-full rounded-[24px] p-7 flex flex-col gap-5 relative overflow-hidden transition-all ${
                 highlight
-                  ? "bg-[#1a7fe8] border-[#1a7fe8] text-white"
-                  : "bg-white dark:bg-[#111827] border-slate-100 dark:border-white/[0.06]"
+                  ? "border border-[#1a7fe8]/40 bg-gradient-to-b from-[#1a7fe8]/10 to-[#7c3aed]/5"
+                  : "border border-white/[0.07] bg-white/[0.02]"
               }`}>
                 {highlight && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-amber-400 text-[11px] font-black text-amber-900 uppercase tracking-wide">
-                    Most Popular
-                  </div>
+                  <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#1a7fe8] to-transparent" />
                 )}
                 <div>
-                  <p className={`text-[12px] font-bold uppercase tracking-widest mb-1 ${highlight ? "text-blue-200" : "text-[#1a7fe8]"}`}>{name}</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-[32px] font-black tracking-tight ${highlight ? "text-white" : "text-slate-900 dark:text-white"}`}>{price}</span>
-                    <span className={`text-[13px] font-medium ${highlight ? "text-blue-200" : "text-slate-400"}`}>{period}</span>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/40 mb-2">{name}</div>
+                  <div className="flex items-baseline gap-1.5 mb-1">
+                    <span className="text-[38px] font-black tracking-tight leading-none">{credits}</span>
+                    {credits !== "Unlimited" && <span className="text-[13px] text-white/30 font-medium">credits</span>}
                   </div>
-                  <p className={`text-[12px] font-semibold mt-0.5 ${highlight ? "text-blue-100" : "text-emerald-600 dark:text-emerald-400"}`}>{credits}</p>
-                  <p className={`text-[13px] mt-2 leading-snug ${highlight ? "text-blue-100" : "text-slate-500 dark:text-slate-400"}`}>{description}</p>
+                  <div className={`text-[14px] font-semibold mb-1 ${highlight ? "text-[#1a7fe8]" : "text-white/50"}`}>
+                    {price === "Custom" ? "Custom quote" : `₦${price} / term`}
+                  </div>
+                  <div className="text-[12px] text-white/30">{students}</div>
                 </div>
-                <ul className="space-y-2">
+                <ul className="space-y-2.5 flex-1">
                   {features.map(f => (
-                    <li key={f} className={`flex items-start gap-2 text-[13px] ${highlight ? "text-blue-50" : "text-slate-600 dark:text-slate-300"}`}>
-                      <CheckCircle className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${highlight ? "text-blue-200" : "text-emerald-500"}`} />
+                    <li key={f} className="flex items-center gap-2.5 text-[13px] text-white/50">
+                      <CheckCircle className="h-3.5 w-3.5 text-[#1a7fe8] flex-shrink-0" />
                       {f}
                     </li>
                   ))}
                 </ul>
-                <button
-                  onClick={handleLogin}
-                  className={`w-full py-3 rounded-[12px] text-[14px] font-bold transition-all cursor-pointer ${
+                <button onClick={go}
+                  className={`w-full py-3 rounded-full text-[13.5px] font-bold cursor-pointer transition-all hover:brightness-110 active:scale-[0.97] ${
                     highlight
-                      ? "bg-white text-[#1a7fe8] hover:bg-blue-50"
-                      : "text-white hover:opacity-90"
+                      ? "text-white"
+                      : "text-white/70 border border-white/10 hover:text-white hover:border-white/20"
                   }`}
-                  style={highlight ? {} : { background: "linear-gradient(135deg, #1a7fe8 0%, #0f5fbf 100%)" }}
-                >
-                  {name === "Institution" ? "Contact Sales" : "Get Started"}
+                  style={highlight ? { background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" } : {}}>
+                  {name === "Institution" ? "Contact us" : "Get started"}
                 </button>
+              </div>
+            </FadeUp>
+          ))}
+        </div>
+
+        {/* Feature grid */}
+        <FadeUp>
+          <div className="rounded-[24px] border border-white/[0.06] overflow-hidden grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-white/[0.06]">
+            {[
+              { icon: BookOpen, label: "All exam types", sub: "MCQ, written, assignments" },
+              { icon: Award, label: "AI grading", sub: "Essays marked in minutes" },
+              { icon: Shield, label: "Secure exams", sub: "Anti-cheat built in" },
+              { icon: Users, label: "Multi-school", sub: "One platform, every school" },
+            ].map(({ icon: Icon, label, sub }) => (
+              <div key={label} className="p-6 bg-white/[0.01] hover:bg-white/[0.03] transition-colors">
+                <Icon className="h-5 w-5 text-[#1a7fe8] mb-3" strokeWidth={1.8} />
+                <div className="text-[14px] font-bold mb-0.5">{label}</div>
+                <div className="text-[12px] text-white/35">{sub}</div>
               </div>
             ))}
           </div>
-        </div>
+        </FadeUp>
       </section>
 
-      {/* CTA */}
-      <section className="py-20 bg-white dark:bg-[#0a0f1e]">
-        <div className="max-w-3xl mx-auto px-5 sm:px-8 text-center">
-          <h2 className="text-[28px] sm:text-[36px] font-black text-slate-900 dark:text-white tracking-tight mb-4" style={{ textWrap: "balance" } as React.CSSProperties}>
-            Ready to modernise your school's exams?
+      {/* ── Final CTA ── */}
+      <section className="py-32 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#03060d] via-[#07101e] to-[#03060d]" />
+        <div className="absolute inset-0 opacity-30"
+          style={{ backgroundImage: "radial-gradient(circle at 50% 50%, #1a7fe820, transparent 70%)" }} />
+        <FadeUp className="relative z-10 text-center max-w-2xl mx-auto px-5 sm:px-8">
+          <h2 className="text-[40px] sm:text-[58px] font-black tracking-tight leading-[1.05] mb-6">
+            Ready to modernise your school?
           </h2>
-          <p className="text-[15.5px] text-slate-500 dark:text-slate-400 mb-8 max-w-xl mx-auto leading-relaxed">
-            Join schools across Nigeria running secure, AI-graded CBT exams on Mmuta.
+          <p className="text-[16px] text-white/40 leading-relaxed mb-10">
+            Join schools across Nigeria running secure, AI-graded CBT exams on Mmuta. No hardware, no paper, no waiting.
           </p>
-          <button
-            onClick={handleLogin}
-            className="px-8 py-3.5 text-[15px] font-bold rounded-[14px] text-white shadow-lg shadow-blue-500/20 transition-all hover:scale-[1.02] cursor-pointer"
-            style={{ background: "linear-gradient(135deg, #1a7fe8 0%, #0f5fbf 100%)" }}
-          >
-            Get Started — It's Free
+          <button onClick={go}
+            className="group inline-flex items-center gap-3 px-10 py-4.5 text-[16px] font-bold rounded-full text-white cursor-pointer transition-all hover:brightness-110 active:scale-[0.97]"
+            style={{ background: "linear-gradient(135deg, #1a7fe8 0%, #7c3aed 100%)", boxShadow: "0 0 80px rgba(26,127,232,0.3), 0 0 160px rgba(124,58,237,0.15)" }}>
+            Get started for free
+            <ArrowRight className="h-4.5 w-4.5 transition-transform group-hover:translate-x-0.5" />
           </button>
-        </div>
+        </FadeUp>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-100 dark:border-white/[0.06] bg-slate-50 dark:bg-[#0d1224] py-10">
-        <div className="max-w-6xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Mmuta" className="h-6 w-6 rounded-[7px]" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-            <span className="text-[14px] font-black text-slate-700 dark:text-white">Mmuta</span>
-            <span className="text-slate-300 dark:text-white/20 mx-1">·</span>
-            <span className="text-[12.5px] text-slate-400">Teach. Test. Trust.</span>
+      {/* ── Footer ── */}
+      <footer className="border-t border-white/[0.05] py-12">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-[8px] overflow-hidden bg-[#1a7fe8]/10 border border-[#1a7fe8]/20 flex items-center justify-center">
+              <img src="/logo.png" alt="Mmuta" className="w-full h-full object-cover" onError={e => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+                (e.currentTarget.parentElement as HTMLElement).innerHTML = '<span style="color:#1a7fe8;font-weight:900;font-size:11px">M</span>';
+              }} />
+            </div>
+            <span className="text-[14px] font-black">Mmuta</span>
+            <span className="text-white/20 text-sm">Teach. Test. Trust.</span>
           </div>
-          <div className="flex items-center gap-5 text-[12.5px] text-slate-400 dark:text-slate-500">
-            <a href="mailto:support@mmuta.ng" className="hover:text-slate-700 dark:hover:text-slate-300 transition-colors">support@mmuta.ng</a>
+          <div className="flex items-center gap-6 text-[12.5px] text-white/25">
+            <a href="mailto:support@mmuta.ng" className="hover:text-white/60 transition-colors">support@mmuta.ng</a>
             <span>© {new Date().getFullYear()} Mmuta</span>
           </div>
         </div>

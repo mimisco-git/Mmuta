@@ -21,7 +21,7 @@ async function main() {
   const existingStudents = await prisma.student.count();
   const existingLecturers = await prisma.lecturer.count();
   if (existingStudents > 0 || existingLecturers > 0) {
-    console.log("Database already seeded — delete all rows first if you want to re-seed.");
+    console.log("Database already seeded  -  delete all rows first if you want to re-seed.");
     return;
   }
 
@@ -157,9 +157,9 @@ is_enrolled = True
 
 ### Naming Conventions
 
-- **snake_case**: \`student_name\`, \`course_code\` — Python standard
-- **camelCase**: \`studentName\`, \`courseCode\` — JavaScript/Java standard
-- **PascalCase**: \`StudentRecord\`, \`CourseManager\` — class names
+- **snake_case**: \`student_name\`, \`course_code\`  -  Python standard
+- **camelCase**: \`studentName\`, \`courseCode\`  -  JavaScript/Java standard
+- **PascalCase**: \`StudentRecord\`, \`CourseManager\`  -  class names
 
 > **Rule**: Use descriptive names. \`student_registration_number\` is better than \`srn\`.
 `,
@@ -182,7 +182,7 @@ score = 75
 if score >= 70:
     print("You passed!")
 elif score >= 50:
-    print("Borderline — please study harder.")
+    print("Borderline  -  please study harder.")
 else:
     print("You did not pass. See your lecturer.")
 \`\`\`
@@ -224,14 +224,14 @@ else:
 
 An **array** is a contiguous block of memory storing elements of the same type.
 
-- **Access**: O(1) — direct index lookup
-- **Search**: O(n) — must scan each element
+- **Access**: O(1)  -  direct index lookup
+- **Search**: O(n)  -  must scan each element
 - **Insert/Delete (end)**: O(1)
-- **Insert/Delete (middle)**: O(n) — requires shifting
+- **Insert/Delete (middle)**: O(n)  -  requires shifting
 
 \`\`\`python
 scores = [78, 92, 65, 88, 74]
-print(scores[2])   # 65 — O(1) access
+print(scores[2])   # 65  -  O(1) access
 scores.append(91)  # O(1) insert at end
 scores.insert(2, 70)  # O(n) insert in middle
 \`\`\`
@@ -255,7 +255,7 @@ class LinkedList:
         node.next = self.head
         self.head = node
 
-    def append(self, data):        # O(n) — must traverse to tail
+    def append(self, data):        # O(n)  -  must traverse to tail
         node = Node(data)
         if not self.head:
             self.head = node; return
@@ -322,7 +322,7 @@ DELETE FROM students WHERE reg_number = 'DEMO/2023/00101';
 ### Keys and Constraints
 
 - **Primary Key**: Uniquely identifies each row. Cannot be NULL.
-- **Foreign Key**: References the primary key of another table — enforces referential integrity.
+- **Foreign Key**: References the primary key of another table  -  enforces referential integrity.
 - **UNIQUE**: Guarantees no two rows share the same value in that column.
 - **NOT NULL**: Prevents missing values in a required column.
 `,

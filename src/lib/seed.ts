@@ -10,7 +10,7 @@ async function migrateColumns() {
     try {
       await prisma.$executeRawUnsafe(sql);
     } catch {
-      // Column already exists — ignore
+      // Column already exists  -  ignore
     }
   }
 }
@@ -68,7 +68,7 @@ export async function seedDatabase() {
     }
     console.log(`Created ${depts.length} departments.`);
 
-    // Create default Lecturer — password hashed at seed time
+    // Create default Lecturer  -  password hashed at seed time
     const defaultLecturerPassword = process.env.SEED_LECTURER_PASSWORD || "ChangeMe@2026!";
     const lecturer = await prisma.lecturer.create({
       data: {
@@ -81,7 +81,7 @@ export async function seedDatabase() {
 
     console.log(`Created Lecturer: ${lecturer.name}`);
 
-    // Create default Students — security answers hashed at seed time
+    // Create default Students  -  security answers hashed at seed time
     const rawStudents = [
       {
         fullName: "John Doe",

@@ -509,7 +509,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
       startTimerSystem(data.attempt.id, initialSeconds);
       startProctoring(data.attempt.id, () => handleAutoSubmitBackground(data.attempt.id));
 
-      // Periodic autosave every 10 s — captures current answers even without input changes
+      // Periodic autosave every 10 s  -  captures current answers even without input changes
       if (periodicSaveRef.current) clearInterval(periodicSaveRef.current);
       periodicSaveRef.current = setInterval(() => {
         setSelectedAnswers((prev) => {
@@ -758,7 +758,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
         try {
           localStorage.setItem(`exam_draft_${activeAttempt.id}`, JSON.stringify(answers));
         } catch {
-          // storage unavailable — silently ignore
+          // storage unavailable  -  silently ignore
         }
       }
       setAutoSaveStatus("saved");
@@ -977,7 +977,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
           </div>
         </div>
 
-        {/* Offline banner — shown during active exam when network drops */}
+        {/* Offline banner  -  shown during active exam when network drops */}
         <AnimatePresence>
           {isOffline && (
             <motion.div
@@ -989,7 +989,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
             >
               <div className="bg-amber-950/80 border-b border-amber-800/60 px-6 py-2.5 flex items-center gap-2.5 text-amber-300 text-[12px] font-semibold">
                 <WifiOff className="h-4 w-4 flex-shrink-0" />
-                <span>No network — your answers are saved locally and will be submitted when connection restores.</span>
+                <span>No network  -  your answers are saved locally and will be submitted when connection restores.</span>
               </div>
             </motion.div>
           )}
@@ -1186,7 +1186,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
 
   /* ─── MAIN DASHBOARD ─── */
 
-  // Per-course stats from already-loaded state — used for sidebar completion bars
+  // Per-course stats from already-loaded state  -  used for sidebar completion bars
   const courseStatsByCode: Record<string, { attempted: number; avgPct: number | null }> = {};
   const _addRow = (code: string, pct: number | null) => {
     if (!code) return;
@@ -1208,7 +1208,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
   return (
     <div className="flex h-screen overflow-hidden apple-window-bg dark:bg-[#141416] font-sans relative">
 
-      {/* Onboarding tour — shown once to new users */}
+      {/* Onboarding tour  -  shown once to new users */}
       {showTour && (
         <OnboardingTour role="student" onDone={() => {
           setShowTour(false);
@@ -1216,13 +1216,13 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
         }} />
       )}
 
-      {/* Subtle radial bg gradients — barely visible, add depth */}
+      {/* Subtle radial bg gradients  -  barely visible, add depth */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div style={{ position: "absolute", width: 800, height: 800, top: -200, right: -150, background: "radial-gradient(ellipse at center, rgba(10,148,99,0.055) 0%, transparent 62%)" }} />
         <div style={{ position: "absolute", width: 600, height: 600, bottom: -100, left: -100, background: "radial-gradient(ellipse at center, rgba(4,120,87,0.035) 0%, transparent 62%)" }} />
       </div>
 
-      {/* ── LEFT SIDEBAR — desktop only ── */}
+      {/* ── LEFT SIDEBAR  -  desktop only ── */}
       <aside className="hidden sm:flex sm:w-[232px] flex-shrink-0 flex-col h-full apple-sidebar relative z-10">
 
         {/* Traffic lights */}
@@ -1384,7 +1384,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                 ))}
               </select>
               {!availableDepartments.some(d => d.name === currentDepartment) && (
-                <p className="text-[10px] text-amber-600 dark:text-amber-400 px-2 mt-1 leading-tight">Please select your department — it controls what courses and assessments you see.</p>
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 px-2 mt-1 leading-tight">Please select your department  -  it controls what courses and assessments you see.</p>
               )}
             </div>
           )}
@@ -1524,7 +1524,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                     {availableDepartments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
                   </select>
                   {!availableDepartments.some(d => d.name === currentDepartment) && (
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 px-2 mt-1 leading-tight">Select your department — it controls what you see.</p>
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 px-2 mt-1 leading-tight">Select your department  -  it controls what you see.</p>
                   )}
                 </div>
               )}
@@ -1568,7 +1568,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
 
         {/* Top toolbar */}
         <header className="apple-header-bar flex-shrink-0 flex items-center gap-2 px-3 sm:px-6 h-[44px] border-b border-black/[0.05] dark:border-white/[0.04] backdrop-blur-xl">
-          {/* Hamburger — mobile only */}
+          {/* Hamburger  -  mobile only */}
           <button
             onClick={() => setMobileSidebarOpen(true)}
             className="sm:hidden flex items-center justify-center w-9 h-9 rounded-[10px] text-[#3a3a3c] dark:text-white/60 hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition flex-shrink-0"
@@ -1642,7 +1642,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                   { icon: Award,       label: "Quizzes Done",   value: done.length },
                   { icon: TrendingUp,  label: "Quiz Avg",        value: `${quizAvg.toFixed(1)}%` },
                   { icon: FileText,    label: "Exams Submitted", value: examSubmissions.length },
-                  { icon: CheckCircle, label: "Exam Avg",        value: gradedExams.length > 0 ? `${examAvg.toFixed(1)}%` : "—" },
+                  { icon: CheckCircle, label: "Exam Avg",        value: gradedExams.length > 0 ? `${examAvg.toFixed(1)}%` : " - " },
                 ].map(stat => (
                   <div key={stat.label} className="text-center p-3 apple-card rounded-[12px]">
                     <stat.icon className="h-4 w-4 text-emerald-500 mx-auto mb-1" strokeWidth={1.8} />
@@ -1845,7 +1845,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                   <p className="apple-subtitle">Secure timed assessments for your enrolled courses.</p>
                 </div>
                 <div className="p-5 space-y-4">
-                  {/* Mobile-only course selector — sidebar handles this on desktop */}
+                  {/* Mobile-only course selector  -  sidebar handles this on desktop */}
                   {courses.length > 0 && (
                     <div className="sm:hidden -mx-5 px-5 pb-1">
                       <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
@@ -2269,7 +2269,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                     ) : (
                       <div className="py-8 text-center">
                         <CheckCircle className="h-10 w-10 text-emerald-400 mx-auto mb-3" />
-                        <p className="text-[13px] font-semibold text-[#3a3a3c] dark:text-white/70">Assignment submitted — awaiting grading</p>
+                        <p className="text-[13px] font-semibold text-[#3a3a3c] dark:text-white/70">Assignment submitted  -  awaiting grading</p>
                         <p className="text-[12px] text-[#6e6e73] dark:text-white/40 mt-1">Your lecturer will grade your submission with AI.</p>
                       </div>
                     )}
@@ -2324,7 +2324,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
 
                       {/* File attachment */}
                       <div className="border-2 border-dashed border-black/[0.09] dark:border-white/[0.09] rounded-[12px] p-4">
-                        <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40 mb-3">Attach a File <span className="normal-case font-normal text-[#8e8e93] dark:text-white/30">(optional — PDF, images, Word, max 8 MB)</span></p>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40 mb-3">Attach a File <span className="normal-case font-normal text-[#8e8e93] dark:text-white/30">(optional  -  PDF, images, Word, max 8 MB)</span></p>
                         {assignmentFile ? (
                           <div className="flex items-center gap-3">
                             <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-[10px] bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40">
@@ -2393,7 +2393,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                 id: `q_${a.id}`, type: "quiz" as const,
                 title: a.quiz?.title || "Quiz",
                 courseCode: a.quiz?.course?.code || "",
-                date: a.submittedAt ? new Date(a.submittedAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "—",
+                date: a.submittedAt ? new Date(a.submittedAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : " - ",
                 pct: a.score ?? 0,
                 scoreLabel: `${(a.score ?? 0).toFixed(1)}%`,
                 isGraded: true,
@@ -2444,9 +2444,9 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                 {/* Stats header */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { label: "Overall Average", value: avgPct !== null ? `${avgPct.toFixed(1)}%` : "—", sub: overallLetter ? `Grade ${overallLetter.letter}` : "No grades yet", accent: "emerald" },
+                    { label: "Overall Average", value: avgPct !== null ? `${avgPct.toFixed(1)}%` : " - ", sub: overallLetter ? `Grade ${overallLetter.letter}` : "No grades yet", accent: "emerald" },
                     { label: "Total Assessments", value: String(allRows.length), sub: `${graded.length} graded`, accent: "blue" },
-                    { label: "Passed", value: String(passCount), sub: graded.length ? `${((passCount / graded.length) * 100).toFixed(0)}% pass rate` : "—", accent: "green" },
+                    { label: "Passed", value: String(passCount), sub: graded.length ? `${((passCount / graded.length) * 100).toFixed(0)}% pass rate` : " - ", accent: "green" },
                     { label: "Pending", value: String(allRows.filter(r => !r.isGraded).length), sub: "awaiting grade", accent: "amber" },
                   ].map(s => (
                     <div key={s.label} className="apple-card px-4 py-4">
@@ -2504,7 +2504,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                   </div>
                 )}
 
-                {/* Trend chart — score over time for graded assessments */}
+                {/* Trend chart  -  score over time for graded assessments */}
                 {graded.length >= 2 && (() => {
                   const pts = graded.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                   const W = 340, H = 90, PAD = 12;
@@ -2548,8 +2548,8 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                       type="button"
                       onClick={() => {
                         const rows = allRows;
-                        const letterGrade = avgPct !== null ? gradeLetter(avgPct).letter : "—";
-                        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Grade Report — ${user.fullName}</title><style>
+                        const letterGrade = avgPct !== null ? gradeLetter(avgPct).letter : " - ";
+                        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Grade Report  -  ${user.fullName}</title><style>
                           body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;padding:32px;color:#1d1d1f;max-width:720px;margin:auto}
                           h1{font-size:22px;font-weight:700;margin:0 0 4px}
                           .sub{color:#6e6e73;font-size:13px;margin-bottom:24px}
@@ -2569,9 +2569,9 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                           <h1>Academic Grade Report</h1>
                           <div class="sub">${user.fullName} · ${user.regNumber} · ${user.department} · ${user.year} · Generated ${new Date().toLocaleDateString("en-US",{day:"numeric",month:"long",year:"numeric"})}</div>
                           <div class="stats">
-                            <div class="stat"><div class="stat-label">Overall Average</div><div class="stat-value">${avgPct !== null ? avgPct.toFixed(1)+"%" : "—"}</div><div style="font-size:11px;color:#8e8e93;margin-top:2px">Grade ${letterGrade}</div></div>
+                            <div class="stat"><div class="stat-label">Overall Average</div><div class="stat-value">${avgPct !== null ? avgPct.toFixed(1)+"%" : " - "}</div><div style="font-size:11px;color:#8e8e93;margin-top:2px">Grade ${letterGrade}</div></div>
                             <div class="stat"><div class="stat-label">Total</div><div class="stat-value">${rows.length}</div><div style="font-size:11px;color:#8e8e93;margin-top:2px">${graded.length} graded</div></div>
-                            <div class="stat"><div class="stat-label">Passed</div><div class="stat-value">${passCount}</div><div style="font-size:11px;color:#8e8e93;margin-top:2px">${graded.length ? ((passCount/graded.length)*100).toFixed(0)+"% pass rate" : "—"}</div></div>
+                            <div class="stat"><div class="stat-label">Passed</div><div class="stat-value">${passCount}</div><div style="font-size:11px;color:#8e8e93;margin-top:2px">${graded.length ? ((passCount/graded.length)*100).toFixed(0)+"% pass rate" : " - "}</div></div>
                             <div class="stat"><div class="stat-label">Pending</div><div class="stat-value">${rows.filter(r=>!r.isGraded).length}</div><div style="font-size:11px;color:#8e8e93;margin-top:2px">awaiting grade</div></div>
                           </div>
                           <table><thead><tr><th>#</th><th>Assessment</th><th>Type</th><th>Course</th><th>Date</th><th>Score</th><th>Grade</th></tr></thead><tbody>
@@ -2584,7 +2584,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                               <td style="font-family:monospace;font-size:11px">${r.courseCode}</td>
                               <td style="color:#6e6e73">${new Date(r.date).toLocaleDateString("en-US",{day:"numeric",month:"short",year:"numeric"})}</td>
                               <td class="${!r.isGraded?"pending":r.pct!>=50?"pass":"fail"}">${r.isGraded?r.scoreLabel:"Pending"}</td>
-                              <td style="font-weight:700">${gl?gl.letter:"—"}</td>
+                              <td style="font-weight:700">${gl?gl.letter:" - "}</td>
                             </tr>`;
                           }).join("")}
                           </tbody></table>
@@ -2698,7 +2698,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                                       </div>
                                     ) : (
                                       <p className="text-[12px] text-[#8e8e93] dark:text-white/30 italic">
-                                        {row.isGraded ? "No written feedback for this submission." : "Grade pending — check back after your lecturer runs AI grading."}
+                                        {row.isGraded ? "No written feedback for this submission." : "Grade pending  -  check back after your lecturer runs AI grading."}
                                       </p>
                                     )}
                                     {/* Result Slip button */}

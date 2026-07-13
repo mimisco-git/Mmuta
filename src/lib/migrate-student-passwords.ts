@@ -16,7 +16,7 @@ async function main() {
   });
 
   if (students.length === 0) {
-    console.log("No unmigrated students found — nothing to do.");
+    console.log("No unmigrated students found  -  nothing to do.");
     return;
   }
 
@@ -32,7 +32,7 @@ async function main() {
         where: { id: student.id },
         data:  { passwordHash, mustChangePassword: true },
       });
-      console.log(`  ✓ ${student.regNumber} — ${student.fullName}`);
+      console.log(`  ✓ ${student.regNumber}  -  ${student.fullName}`);
       success++;
     } catch (err) {
       console.error(`  ✗ ${student.regNumber}: ${err}`);
