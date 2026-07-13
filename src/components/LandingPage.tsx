@@ -6,12 +6,15 @@ import Lenis from "@studio-freight/lenis";
 import {
   Shield, Zap, BarChart2, CheckCircle, ArrowRight,
   Menu, X, BookOpen, Users, Award, ChevronDown,
+  WifiOff, Battery, RotateCcw, MessageCircle,
 } from "lucide-react";
 import * as THREE from "three";
 
 interface LandingPageProps {
   onGetStarted?: () => void;
 }
+
+const WHATSAPP_NUMBER = "2348000000000"; // replace with real number before launch
 
 // ── 3D floating orb ──────────────────────────────────────────────────────────
 function FloatingOrb() {
@@ -88,22 +91,37 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
     return () => lenis.destroy();
   }, []);
 
-  const go = () => {
+  const login = () => {
     if (onGetStarted) { onGetStarted(); return; }
     window.location.href = "/login";
+  };
+
+  const bookDemo = () => {
+    document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" });
   };
 
   const navLinks = [
     { href: "#platform", label: "Platform" },
     { href: "#how-it-works", label: "How It Works" },
-    { href: "#schools", label: "For Schools" },
+    { href: "#schools", label: "Pricing" },
   ];
 
   return (
     <div className="bg-[#03060d] text-white min-h-screen overflow-x-hidden font-sans">
 
+      {/* ── Floating WhatsApp button ── */}
+      <a
+        href={`https://wa.me/${WHATSAPP_NUMBER}?text=Hi%2C%20I%27d%20like%20to%20learn%20more%20about%20Mmuta%20for%20my%20school.`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-full shadow-2xl cursor-pointer transition-all hover:scale-105 active:scale-[0.97]"
+        style={{ background: "#25d366", boxShadow: "0 4px 32px rgba(37,211,102,0.35)" }}>
+        <MessageCircle className="h-5 w-5 text-white fill-white" />
+        <span className="text-[13.5px] font-bold text-white pr-1">Chat on WhatsApp</span>
+      </a>
+
       {/* ── Navbar ── */}
-      <header className="fixed top-0 inset-x-0 z-50">
+      <header className="fixed top-0 inset-x-0 z-40">
         <div className="mx-auto max-w-7xl px-5 sm:px-8 h-[62px] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-[10px] overflow-hidden bg-[#1a7fe8]/10 border border-[#1a7fe8]/20 flex items-center justify-center">
@@ -125,14 +143,14 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           </nav>
 
           <div className="hidden md:flex items-center gap-3">
-            <button onClick={go}
+            <button onClick={login}
               className="px-4 py-2 text-[13px] font-semibold text-white/60 hover:text-white transition-colors cursor-pointer">
-              Sign In
+              Log In
             </button>
-            <button onClick={go}
+            <button onClick={bookDemo}
               className="px-5 py-2.5 text-[13px] font-bold rounded-full text-white cursor-pointer transition-all hover:brightness-110 active:scale-[0.98]"
               style={{ background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>
-              Get Started
+              Book a Demo
             </button>
           </div>
 
@@ -141,10 +159,8 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           </button>
         </div>
 
-        {/* Blur bar */}
         <div className="absolute inset-0 -z-10 bg-[#03060d]/80 backdrop-blur-xl border-b border-white/[0.04]" />
 
-        {/* Mobile menu */}
         {menuOpen && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
             className="md:hidden absolute top-full inset-x-0 bg-[#080d1a]/95 backdrop-blur-xl border-b border-white/[0.06] px-5 py-5 space-y-4">
@@ -154,11 +170,17 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 {l.label}
               </a>
             ))}
-            <button onClick={go}
-              className="w-full py-3 text-[14px] font-bold rounded-full text-white cursor-pointer"
-              style={{ background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>
-              Get Started Free
-            </button>
+            <div className="flex gap-3 pt-2">
+              <button onClick={bookDemo}
+                className="flex-1 py-3 text-[14px] font-bold rounded-full text-white cursor-pointer"
+                style={{ background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>
+                Book a Demo
+              </button>
+              <button onClick={login}
+                className="flex-1 py-3 text-[14px] font-semibold rounded-full border border-white/10 text-white/70 cursor-pointer">
+                Log In
+              </button>
+            </div>
           </motion.div>
         )}
       </header>
@@ -166,20 +188,18 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
       {/* ── Hero ── */}
       <section ref={heroRef} className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden pt-16">
 
-        {/* Background grid */}
         <div className="absolute inset-0"
           style={{
             backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0)",
             backgroundSize: "40px 40px",
           }} />
 
-        {/* Glow blobs */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full opacity-[0.07] blur-[120px] pointer-events-none"
           style={{ background: "radial-gradient(circle, #1a7fe8 0%, #7c3aed 60%, transparent 100%)" }} />
 
         {/* 3D Orb */}
         <motion.div style={{ y: heroY, opacity: heroOpacity }}
-          className="absolute right-[5%] top-[12%] w-[340px] h-[340px] sm:w-[520px] sm:h-[520px] opacity-80">
+          className="absolute right-[5%] top-[12%] w-[280px] h-[280px] sm:w-[480px] sm:h-[480px] opacity-75 hidden sm:block">
           <Canvas camera={{ position: [0, 0, 3], fov: 45 }} gl={{ antialias: true, alpha: true }}>
             <ambientLight intensity={0.6} />
             <directionalLight position={[5, 5, 5]} intensity={1.2} color="#7c3aed" />
@@ -188,7 +208,6 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           </Canvas>
         </motion.div>
 
-        {/* Hero text */}
         <motion.div style={{ y: heroY, opacity: heroOpacity }}
           className="relative z-10 max-w-7xl mx-auto px-5 sm:px-8 py-24 text-left">
           <motion.div
@@ -200,36 +219,36 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
           <motion.h1
             initial={{ opacity: 0, y: 32 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.2 }}
-            className="text-[52px] sm:text-[72px] lg:text-[88px] font-black leading-[0.95] tracking-[-0.03em] mb-8 max-w-3xl">
-            <span className="block">Teach.</span>
-            <span className="block" style={{ WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text", backgroundImage: "linear-gradient(135deg, #1a7fe8 0%, #7c3aed 50%, #06b6d4 100%)" }}>Test.</span>
-            <span className="block">Trust.</span>
+            className="text-[48px] sm:text-[68px] lg:text-[84px] font-black leading-[0.95] tracking-[-0.03em] mb-8 max-w-3xl">
+            Run your school's exams, grading,{" "}
+            <span style={{ WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text", backgroundImage: "linear-gradient(135deg, #1a7fe8 0%, #7c3aed 50%, #06b6d4 100%)" }}>
+              and results
+            </span>{" "}
+            in one platform.
           </motion.h1>
 
           <motion.p
             initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.35 }}
             className="text-[17px] sm:text-[19px] text-white/45 max-w-xl leading-relaxed mb-12">
-            One platform for every school. Run secure CBT exams, get instant AI-graded results, and manage students across all your departments.
+            Secure CBT exams. AI-graded results. Instant student scores. No paper, no delays, no WhatsApp-forwarded results.
           </motion.p>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.5 }}
             className="flex flex-col sm:flex-row gap-4">
-            <button onClick={go}
-              className="group flex items-center justify-center gap-2.5 px-8 py-4 text-[15px] font-bold rounded-full text-white cursor-pointer transition-all hover:brightness-110 active:scale-[0.97] shadow-2xl"
+            <button onClick={bookDemo}
+              className="group flex items-center justify-center gap-2.5 px-8 py-4 text-[15px] font-bold rounded-full text-white cursor-pointer transition-all hover:brightness-110 active:scale-[0.97]"
               style={{ background: "linear-gradient(135deg, #1a7fe8 0%, #7c3aed 100%)", boxShadow: "0 0 60px rgba(26,127,232,0.35)" }}>
-              Start for free
+              Book a Demo
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </button>
-            <button
-              onClick={() => document.getElementById("platform")?.scrollIntoView({ behavior: "smooth" })}
+            <button onClick={login}
               className="flex items-center justify-center gap-2 px-8 py-4 text-[15px] font-semibold rounded-full border border-white/10 text-white/70 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all cursor-pointer">
-              See the platform
+              Log In
             </button>
           </motion.div>
         </motion.div>
 
-        {/* Scroll cue */}
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
           className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/25">
@@ -341,8 +360,58 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         </div>
       </section>
 
+      {/* ── Fear-killer: exam resilience ── */}
+      <section className="py-24 border-y border-white/[0.05]">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8">
+          <FadeUp className="text-center mb-16">
+            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-amber-400 mb-4">Reliability</p>
+            <h2 className="text-[36px] sm:text-[52px] font-black tracking-tight leading-[1.05] mb-5">
+              What happens on exam day<br />when the network drops?
+            </h2>
+            <p className="text-[16px] text-white/40 max-w-2xl mx-auto leading-relaxed">
+              Every answer is saved automatically, every second. If power goes or internet cuts, students
+              resume exactly where they stopped. No lost work. No re-sits. No excuses from students.
+            </p>
+          </FadeUp>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-4xl mx-auto">
+            {[
+              {
+                icon: WifiOff,
+                color: "#f59e0b",
+                title: "Network drops",
+                desc: "Answers are saved locally and synced automatically when connection returns.",
+              },
+              {
+                icon: Battery,
+                color: "#ef4444",
+                title: "Power failure",
+                desc: "Student resumes the same exam session on any device, at the same question.",
+              },
+              {
+                icon: RotateCcw,
+                color: "#22c55e",
+                title: "Accidental refresh",
+                desc: "Session is restored instantly. Time clock picks up where it left off.",
+              },
+            ].map(({ icon: Icon, color, title, desc }) => (
+              <FadeUp key={title}>
+                <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.02] p-7 text-center">
+                  <div className="w-12 h-12 rounded-full mx-auto mb-5 flex items-center justify-center"
+                    style={{ background: `${color}15` }}>
+                    <Icon className="h-5 w-5" style={{ color }} />
+                  </div>
+                  <h4 className="text-[16px] font-bold mb-2">{title}</h4>
+                  <p className="text-[13.5px] text-white/35 leading-relaxed">{desc}</p>
+                </div>
+              </FadeUp>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── How it works ── */}
-      <section id="how-it-works" className="py-24 border-y border-white/[0.05]">
+      <section id="how-it-works" className="py-24">
         <div className="max-w-7xl mx-auto px-5 sm:px-8">
           <FadeUp className="text-center mb-20">
             <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#7c3aed] mb-4">Process</p>
@@ -353,7 +422,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { n: "01", title: "Register your school", desc: "Super admin creates your school profile. You get a unique school code your staff uses to join." },
+              { n: "01", title: "Register your school", desc: "Your school gets a unique code. Staff and students use it to join — no spreadsheets needed." },
               { n: "02", title: "Add staff and students", desc: "Import students via CSV or add individually. Teachers register with your school code in seconds." },
               { n: "03", title: "Create and publish exams", desc: "Upload a PDF question paper or type questions directly. Set a time window and publish to any course." },
               { n: "04", title: "Get results instantly", desc: "AI grades essays the moment students submit. MCQ exams are auto-scored. Results are live within minutes." },
@@ -370,108 +439,115 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         </div>
       </section>
 
-      {/* ── For Schools section (replaces pricing as primary CTA section) ── */}
-      <section id="schools" className="py-24 max-w-7xl mx-auto px-5 sm:px-8">
-        <FadeUp className="text-center mb-16">
-          <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#06b6d4] mb-4">For Schools</p>
-          <h2 className="text-[36px] sm:text-[52px] font-black tracking-tight leading-[1.05] mb-5">
-            Credit-based. Pay as you go.
-          </h2>
-          <p className="text-[16px] text-white/40 max-w-xl mx-auto leading-relaxed">
-            Buy exam credits. Each student exam attempt costs one credit. No monthly fees, no per-seat subscriptions.
-          </p>
-        </FadeUp>
+      {/* ── Pricing ── */}
+      <section id="schools" className="py-24 border-t border-white/[0.05]">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8">
+          <FadeUp className="text-center mb-16">
+            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#06b6d4] mb-4">Pricing</p>
+            <h2 className="text-[36px] sm:text-[52px] font-black tracking-tight leading-[1.05] mb-5">
+              Credit-based. Pay as you go.
+            </h2>
+            <p className="text-[16px] text-white/40 max-w-xl mx-auto leading-relaxed">
+              Buy exam credits. Each student exam attempt costs one credit. No monthly fees, no per-seat subscriptions — pay for what you actually use.
+            </p>
+          </FadeUp>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto mb-16">
-          {[
-            {
-              name: "Starter",
-              credits: "500",
-              price: "120,000",
-              students: "Up to 200 students",
-              features: ["500 exam attempts", "All exam types", "AI grading", "Email support"],
-              highlight: false,
-            },
-            {
-              name: "School",
-              credits: "2,000",
-              price: "350,000",
-              students: "Up to 1,000 students",
-              features: ["2,000 exam attempts", "All exam types", "AI grading", "Priority support", "Analytics"],
-              highlight: true,
-            },
-            {
-              name: "Institution",
-              credits: "Unlimited",
-              price: "Custom",
-              students: "Unlimited students",
-              features: ["Unlimited attempts", "All exam types", "AI grading", "Dedicated manager", "SLA"],
-              highlight: false,
-            },
-          ].map(({ name, credits, price, students, features, highlight }) => (
-            <FadeUp key={name}>
-              <div className={`h-full rounded-[24px] p-7 flex flex-col gap-5 relative overflow-hidden transition-all ${
-                highlight
-                  ? "border border-[#1a7fe8]/40 bg-gradient-to-b from-[#1a7fe8]/10 to-[#7c3aed]/5"
-                  : "border border-white/[0.07] bg-white/[0.02]"
-              }`}>
-                {highlight && (
-                  <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#1a7fe8] to-transparent" />
-                )}
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/40 mb-2">{name}</div>
-                  <div className="flex items-baseline gap-1.5 mb-1">
-                    <span className="text-[38px] font-black tracking-tight leading-none">{credits}</span>
-                    {credits !== "Unlimited" && <span className="text-[13px] text-white/30 font-medium">credits</span>}
-                  </div>
-                  <div className={`text-[14px] font-semibold mb-1 ${highlight ? "text-[#1a7fe8]" : "text-white/50"}`}>
-                    {price === "Custom" ? "Custom quote" : `₦${price} / term`}
-                  </div>
-                  <div className="text-[12px] text-white/30">{students}</div>
-                </div>
-                <ul className="space-y-2.5 flex-1">
-                  {features.map(f => (
-                    <li key={f} className="flex items-center gap-2.5 text-[13px] text-white/50">
-                      <CheckCircle className="h-3.5 w-3.5 text-[#1a7fe8] flex-shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <button onClick={go}
-                  className={`w-full py-3 rounded-full text-[13.5px] font-bold cursor-pointer transition-all hover:brightness-110 active:scale-[0.97] ${
-                    highlight
-                      ? "text-white"
-                      : "text-white/70 border border-white/10 hover:text-white hover:border-white/20"
-                  }`}
-                  style={highlight ? { background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" } : {}}>
-                  {name === "Institution" ? "Contact us" : "Get started"}
-                </button>
-              </div>
-            </FadeUp>
-          ))}
-        </div>
-
-        {/* Feature grid */}
-        <FadeUp>
-          <div className="rounded-[24px] border border-white/[0.06] overflow-hidden grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-white/[0.06]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto mb-16">
             {[
-              { icon: BookOpen, label: "All exam types", sub: "MCQ, written, assignments" },
-              { icon: Award, label: "AI grading", sub: "Essays marked in minutes" },
-              { icon: Shield, label: "Secure exams", sub: "Anti-cheat built in" },
-              { icon: Users, label: "Multi-school", sub: "One platform, every school" },
-            ].map(({ icon: Icon, label, sub }) => (
-              <div key={label} className="p-6 bg-white/[0.01] hover:bg-white/[0.03] transition-colors">
-                <Icon className="h-5 w-5 text-[#1a7fe8] mb-3" strokeWidth={1.8} />
-                <div className="text-[14px] font-bold mb-0.5">{label}</div>
-                <div className="text-[12px] text-white/35">{sub}</div>
-              </div>
+              {
+                name: "Starter",
+                credits: "500",
+                price: "120,000",
+                students: "Up to 200 students",
+                features: ["500 exam attempts", "All exam types", "AI grading", "Email support"],
+                highlight: false,
+              },
+              {
+                name: "School",
+                credits: "2,000",
+                price: "350,000",
+                students: "Up to 1,000 students",
+                features: ["2,000 exam attempts", "All exam types", "AI grading", "Priority support", "School analytics"],
+                highlight: true,
+              },
+              {
+                name: "Institution",
+                credits: "Unlimited",
+                price: "Custom",
+                students: "Unlimited students",
+                features: ["Unlimited attempts", "All exam types", "AI grading", "Dedicated manager", "SLA guarantee"],
+                highlight: false,
+              },
+            ].map(({ name, credits, price, students, features, highlight }) => (
+              <FadeUp key={name}>
+                <div className={`h-full rounded-[24px] p-7 flex flex-col gap-5 relative overflow-hidden transition-all ${
+                  highlight
+                    ? "border border-[#1a7fe8]/40 bg-gradient-to-b from-[#1a7fe8]/10 to-[#7c3aed]/5"
+                    : "border border-white/[0.07] bg-white/[0.02]"
+                }`}>
+                  {highlight && (
+                    <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#1a7fe8] to-transparent" />
+                  )}
+                  {highlight && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] text-white"
+                      style={{ background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>
+                      Most Popular
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/40 mb-2">{name}</div>
+                    <div className="flex items-baseline gap-1.5 mb-1">
+                      <span className="text-[38px] font-black tracking-tight leading-none">{credits}</span>
+                      {credits !== "Unlimited" && <span className="text-[13px] text-white/30 font-medium">credits</span>}
+                    </div>
+                    <div className={`text-[14px] font-semibold mb-1 ${highlight ? "text-[#1a7fe8]" : "text-white/50"}`}>
+                      {price === "Custom" ? "Custom quote" : `₦${price} / term`}
+                    </div>
+                    <div className="text-[12px] text-white/30">{students}</div>
+                  </div>
+                  <ul className="space-y-2.5 flex-1">
+                    {features.map(f => (
+                      <li key={f} className="flex items-center gap-2.5 text-[13px] text-white/50">
+                        <CheckCircle className="h-3.5 w-3.5 text-[#1a7fe8] flex-shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <button onClick={name === "Institution" ? bookDemo : login}
+                    className={`w-full py-3 rounded-full text-[13.5px] font-bold cursor-pointer transition-all hover:brightness-110 active:scale-[0.97] ${
+                      highlight
+                        ? "text-white"
+                        : "text-white/70 border border-white/10 hover:text-white hover:border-white/20"
+                    }`}
+                    style={highlight ? { background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" } : {}}>
+                    {name === "Institution" ? "Contact us" : "Get started"}
+                  </button>
+                </div>
+              </FadeUp>
             ))}
           </div>
-        </FadeUp>
+
+          <FadeUp>
+            <div className="rounded-[24px] border border-white/[0.06] overflow-hidden grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-white/[0.06]">
+              {[
+                { icon: BookOpen, label: "All exam types", sub: "MCQ, written, assignments" },
+                { icon: Award, label: "AI grading", sub: "Essays marked in minutes" },
+                { icon: Shield, label: "Secure exams", sub: "Anti-cheat built in" },
+                { icon: Users, label: "Multi-school", sub: "One platform, every school" },
+              ].map(({ icon: Icon, label, sub }) => (
+                <div key={label} className="p-6 bg-white/[0.01] hover:bg-white/[0.03] transition-colors">
+                  <Icon className="h-5 w-5 text-[#1a7fe8] mb-3" strokeWidth={1.8} />
+                  <div className="text-[14px] font-bold mb-0.5">{label}</div>
+                  <div className="text-[12px] text-white/35">{sub}</div>
+                </div>
+              ))}
+            </div>
+          </FadeUp>
+        </div>
       </section>
 
-      {/* ── Final CTA ── */}
-      <section className="py-32 relative overflow-hidden">
+      {/* ── Final CTA + Contact ── */}
+      <section id="contact" className="py-32 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-[#03060d] via-[#07101e] to-[#03060d]" />
         <div className="absolute inset-0 opacity-30"
           style={{ backgroundImage: "radial-gradient(circle at 50% 50%, #1a7fe820, transparent 70%)" }} />
@@ -480,33 +556,49 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             Ready to modernise your school?
           </h2>
           <p className="text-[16px] text-white/40 leading-relaxed mb-10">
-            Join schools across Nigeria running secure, AI-graded CBT exams on Mmuta. No hardware, no paper, no waiting.
+            Let us walk you through the platform live. 30 minutes, no commitment. We'll show you how to run your first exam the same day.
           </p>
-          <button onClick={go}
-            className="group inline-flex items-center gap-3 px-10 py-4.5 text-[16px] font-bold rounded-full text-white cursor-pointer transition-all hover:brightness-110 active:scale-[0.97]"
-            style={{ background: "linear-gradient(135deg, #1a7fe8 0%, #7c3aed 100%)", boxShadow: "0 0 80px rgba(26,127,232,0.3), 0 0 160px rgba(124,58,237,0.15)" }}>
-            Get started for free
-            <ArrowRight className="h-4.5 w-4.5 transition-transform group-hover:translate-x-0.5" />
-          </button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a
+              href={`https://wa.me/${WHATSAPP_NUMBER}?text=Hi%2C%20I%27d%20like%20to%20book%20a%20demo%20of%20Mmuta%20for%20my%20school.`}
+              target="_blank" rel="noopener noreferrer"
+              className="group inline-flex items-center gap-3 px-10 py-4 text-[16px] font-bold rounded-full text-white cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.97]"
+              style={{ background: "#25d366", boxShadow: "0 0 60px rgba(37,211,102,0.25)" }}>
+              <MessageCircle className="h-5 w-5 fill-white" />
+              Chat on WhatsApp
+            </a>
+            <button onClick={login}
+              className="inline-flex items-center justify-center gap-2 px-10 py-4 text-[16px] font-semibold rounded-full border border-white/10 text-white/70 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all cursor-pointer">
+              Log In to Mmuta
+            </button>
+          </div>
         </FadeUp>
       </section>
 
       {/* ── Footer ── */}
       <footer className="border-t border-white/[0.05] py-12">
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-[8px] overflow-hidden bg-[#1a7fe8]/10 border border-[#1a7fe8]/20 flex items-center justify-center">
-              <img src="/logo.png" alt="Mmuta" className="w-full h-full object-cover" onError={e => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-                (e.currentTarget.parentElement as HTMLElement).innerHTML = '<span style="color:#1a7fe8;font-weight:900;font-size:11px">M</span>';
-              }} />
+        <div className="max-w-7xl mx-auto px-5 sm:px-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-6">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-[8px] overflow-hidden bg-[#1a7fe8]/10 border border-[#1a7fe8]/20 flex items-center justify-center">
+                <img src="/logo.png" alt="Mmuta" className="w-full h-full object-cover" onError={e => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                  (e.currentTarget.parentElement as HTMLElement).innerHTML = '<span style="color:#1a7fe8;font-weight:900;font-size:11px">M</span>';
+                }} />
+              </div>
+              <span className="text-[14px] font-black">Mmuta</span>
+              <span className="text-white/20 text-sm">Teach. Test. Trust.</span>
             </div>
-            <span className="text-[14px] font-black">Mmuta</span>
-            <span className="text-white/20 text-sm">Teach. Test. Trust.</span>
+            <div className="flex items-center gap-6 text-[12.5px] text-white/25">
+              <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer"
+                className="hover:text-[#25d366] transition-colors">WhatsApp</a>
+              <a href="mailto:support@mmuta.ng" className="hover:text-white/60 transition-colors">support@mmuta.ng</a>
+              <span>© {new Date().getFullYear()} Mmuta</span>
+            </div>
           </div>
-          <div className="flex items-center gap-6 text-[12.5px] text-white/25">
-            <a href="mailto:support@mmuta.ng" className="hover:text-white/60 transition-colors">support@mmuta.ng</a>
-            <span>© {new Date().getFullYear()} Mmuta</span>
+          <div className="text-center text-[11px] text-white/20 leading-relaxed">
+            Mmuta complies with Nigeria's Data Protection Regulation (NDPR). Student data is stored securely
+            and never shared with third parties. <a href="mailto:privacy@mmuta.ng" className="underline hover:text-white/40">Privacy enquiries</a>
           </div>
         </div>
       </footer>
