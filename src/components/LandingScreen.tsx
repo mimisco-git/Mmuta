@@ -67,6 +67,8 @@ export default function LandingScreen({
   // Multi-tenant: schools list + selected school
   const [schools, setSchools] = useState<School[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState("");
+  // Derive the school code from the selected school — this is what auth endpoints accept
+  const selectedSchoolCode = schools.find(s => s.id === selectedSchoolId)?.code ?? "";
 
   // Super admin login
   const [showSuperAdminLogin, setShowSuperAdminLogin] = useState(false);
@@ -126,12 +128,12 @@ export default function LandingScreen({
 
   // Fetch departments when selected school changes
   useEffect(() => {
-    if (!selectedSchoolId) { setDepartmentsList([]); return; }
-    fetch(`/api/departments?schoolId=${selectedSchoolId}`)
+    if (!selectedSchoolCode) { setDepartmentsList([]); return; }
+    fetch(`/api/departments?schoolCode=${encodeURIComponent(selectedSchoolCode)}`)
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setDepartmentsList(data.map((d: any) => d.name)); })
       .catch(() => {});
-  }, [selectedSchoolId]);
+  }, [selectedSchoolCode]);
 
   /* ─── handlers ───────────────────────────────────────── */
   // Safe JSON parser  -  prevents raw "Unexpected token" errors reaching the UI
@@ -154,7 +156,7 @@ export default function LandingScreen({
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setSuccess(null); setLoading(true);
     try {
-      const res  = await fetch("/api/auth/student-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regNumber: studentRegNumber, password: studentPassword, schoolId: selectedSchoolId }) });
+      const res  = await fetch("/api/auth/student-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regNumber: studentRegNumber, password: studentPassword, schoolCode: selectedSchoolCode }) });
       const data = await apiJSON(res);
       if (!res.ok) {
         if (res.status === 401 || res.status === 404) {
@@ -179,7 +181,7 @@ export default function LandingScreen({
     if (regPassword.toUpperCase() === regRegNumber.trim().toUpperCase()) { setError("Your password cannot be the same as your registration number."); return; }
     setLoading(true);
     try {
-      const res  = await fetch("/api/auth/student-register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fullName: regFullName, email: regEmail, regNumber: regRegNumber, department: regDepartment, year: regYear, password: regPassword, securityQuestion, securityAnswer, schoolId: selectedSchoolId }) });
+      const res  = await fetch("/api/auth/student-register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fullName: regFullName, email: regEmail, regNumber: regRegNumber, department: regDepartment, year: regYear, password: regPassword, securityQuestion, securityAnswer, schoolCode: selectedSchoolCode }) });
       const data = await apiJSON(res);
       if (!res.ok) {
         setError(data.error || "Registration failed. Please check your details and try again.");
@@ -216,7 +218,7 @@ export default function LandingScreen({
   const handleLecturerRegister = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setSuccess(null); setLoading(true);
     try {
-      const res  = await fetch("/api/auth/lecturer-register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: regLecturerName, email: regLecturerEmail, password: regLecturerPassword, schoolId: selectedSchoolId }) });
+      const res  = await fetch("/api/auth/lecturer-register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: regLecturerName, email: regLecturerEmail, password: regLecturerPassword, schoolCode: selectedSchoolCode }) });
       const data = await apiJSON(res);
       if (!res.ok) {
         if (res.status === 409) {
@@ -234,7 +236,7 @@ export default function LandingScreen({
   const handleGetSecurityQuestion = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setLoading(true);
     try {
-      const res  = await fetch("/api/auth/student-get-security-question", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regNumber: fixRegNumber }) });
+      const res  = await fetch("/api/auth/student-get-security-question", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regNumber: fixRegNumber, schoolCode: selectedSchoolCode }) });
       const data = await apiJSON(res);
       if (!res.ok) throw new Error(data.error || "Verification failed");
       setFixQuestion(data.securityQuestion); setFixStep("answer-question");
@@ -244,7 +246,7 @@ export default function LandingScreen({
   const handleFixYearSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setSuccess(null); setLoading(true);
     try {
-      const res  = await fetch("/api/auth/student-fix-year", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regNumber: fixRegNumber, securityAnswer: fixAnswer, newYear: fixNewYear }) });
+      const res  = await fetch("/api/auth/student-fix-year", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regNumber: fixRegNumber, securityAnswer: fixAnswer, newYear: fixNewYear, schoolCode: selectedSchoolCode }) });
       const data = await apiJSON(res);
       if (!res.ok) throw new Error(data.error || "Incorrect answer");
       setSuccess("Year updated! Logging in…");
@@ -255,7 +257,7 @@ export default function LandingScreen({
   const handleForgotGetQuestion = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setLoading(true);
     try {
-      const res  = await fetch("/api/auth/student-get-security-question", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regNumber: forgotRegNumber }) });
+      const res  = await fetch("/api/auth/student-get-security-question", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regNumber: forgotRegNumber, schoolCode: selectedSchoolCode }) });
       const data = await apiJSON(res);
       if (!res.ok) throw new Error(data.error || "Registration number not found.");
       setForgotQuestion(data.securityQuestion);
@@ -268,7 +270,7 @@ export default function LandingScreen({
     if (forgotNewPassword !== forgotConfirmPassword) { setError("Passwords do not match."); setLoading(false); return; }
     if (forgotNewPassword.length < 8) { setError("Password must be at least 8 characters."); setLoading(false); return; }
     try {
-      const res  = await fetch("/api/auth/student-forgot-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regNumber: forgotRegNumber, securityAnswer: forgotAnswer, newPassword: forgotNewPassword, confirmPassword: forgotConfirmPassword }) });
+      const res  = await fetch("/api/auth/student-forgot-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regNumber: forgotRegNumber, securityAnswer: forgotAnswer, newPassword: forgotNewPassword, confirmPassword: forgotConfirmPassword, schoolCode: selectedSchoolCode }) });
       const data = await apiJSON(res);
       if (!res.ok) throw new Error(data.error || "Reset failed. Please check your answer.");
       setSuccess("Password reset! Signing you in…");

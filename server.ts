@@ -162,9 +162,9 @@ function authenticateSuperAdmin(req: any, res: any, next: any) {
 
 // Student Registration Route
 app.post("/api/auth/student-register", authLimiter, async (req, res) => {
-  const { fullName, email, regNumber, department, year, password, securityQuestion, securityAnswer, schoolId } = req.body;
+  const { fullName, email, regNumber, department, year, password, securityQuestion, securityAnswer, schoolCode } = req.body;
 
-  if (!fullName || !regNumber || !department || !year || !password || !securityQuestion || !securityAnswer || !schoolId) {
+  if (!fullName || !regNumber || !department || !year || !password || !securityQuestion || !securityAnswer || !schoolCode) {
     return res.status(400).json({ error: "All registration fields are required." });
   }
   if (password.length < 8) {
@@ -180,11 +180,12 @@ app.post("/api/auth/student-register", authLimiter, async (req, res) => {
   }
 
   try {
-    // Validate school
-    const school = await prisma.school.findUnique({ where: { id: schoolId } });
-    if (!school) return res.status(400).json({ error: "Invalid school selected." });
+    // Look up school by code (never trust a client-supplied UUID)
+    const school = await prisma.school.findUnique({ where: { code: schoolCode.trim().toUpperCase() } });
+    if (!school) return res.status(400).json({ error: "Invalid school code." });
     if (!school.isActive) return res.status(400).json({ error: "This school is not currently active." });
 
+    const schoolId = school.id;
     const normalizedReg = regNumber.trim().toUpperCase();
     const normalizedEmail = email ? email.trim().toLowerCase() : null;
 
@@ -252,13 +253,13 @@ app.post("/api/auth/student-register", authLimiter, async (req, res) => {
   }
 });
 
-// Student Login  -  school + registration number + password
+// Student Login  -  school code + registration number + password
 app.post("/api/auth/student-login", authLimiter, async (req, res) => {
-  const { regNumber, password, schoolId } = req.body;
+  const { regNumber, password, schoolCode } = req.body;
 
-  if (!regNumber) return res.status(400).json({ error: "Registration Number is required." });
-  if (!password)  return res.status(400).json({ error: "Password is required." });
-  if (!schoolId)  return res.status(400).json({ error: "School selection is required." });
+  if (!regNumber)  return res.status(400).json({ error: "Registration Number is required." });
+  if (!password)   return res.status(400).json({ error: "Password is required." });
+  if (!schoolCode) return res.status(400).json({ error: "School code is required." });
 
   try {
     const normalizedReg = regNumber.trim().toUpperCase();
@@ -267,6 +268,14 @@ app.post("/api/auth/student-login", authLimiter, async (req, res) => {
     if (isLoginBlocked(normalizedReg)) {
       return res.status(429).json({ error: "Too many failed attempts. Please wait 10 minutes before trying again." });
     }
+
+    // Resolve school by code (never accept a UUID from the client for auth scoping)
+    const school = await prisma.school.findUnique({ where: { code: schoolCode.trim().toUpperCase() } });
+    if (!school || !school.isActive) {
+      recordFailedLogin(normalizedReg);
+      return res.status(401).json({ error: "Invalid registration number or password." });
+    }
+    const schoolId = school.id;
 
     const student = await prisma.student.findUnique({ where: { schoolId_regNumber: { schoolId, regNumber: normalizedReg } } });
 
@@ -326,7 +335,7 @@ app.post("/api/auth/student-login", authLimiter, async (req, res) => {
 // First-time password setup for unmigrated (legacy) student accounts
 // Identity is verified with their old year credential before allowing password to be set
 app.post("/api/auth/student-migrate", authLimiter, async (req, res) => {
-  const { regNumber, year, password } = req.body;
+  const { regNumber, year, password, schoolCode } = req.body;
 
   if (!regNumber || !year || !password) {
     return res.status(400).json({ error: "Registration Number, Year of Study, and new Password are all required." });
@@ -337,7 +346,16 @@ app.post("/api/auth/student-migrate", authLimiter, async (req, res) => {
   try {
     const normalizedReg = regNumber.trim().toUpperCase();
 
-    const student = await prisma.student.findFirst({ where: { regNumber: normalizedReg } });
+    // Scope search by school code when provided; fall back to global (legacy FUTO grace period)
+    let student;
+    if (schoolCode) {
+      const school = await prisma.school.findUnique({ where: { code: schoolCode.trim().toUpperCase() } });
+      student = school
+        ? await prisma.student.findUnique({ where: { schoolId_regNumber: { schoolId: school.id, regNumber: normalizedReg } } })
+        : null;
+    } else {
+      student = await prisma.student.findFirst({ where: { regNumber: normalizedReg } });
+    }
     if (!student) return res.status(404).json({ error: "Registration Number not found." });
 
     if (student.passwordHash !== null) {
@@ -443,16 +461,22 @@ app.post(
 
 // Get student's security question
 app.post("/api/auth/student-get-security-question", strictLimiter, async (req, res) => {
-  const { regNumber } = req.body;
+  const { regNumber, schoolCode } = req.body;
   if (!regNumber) {
     return res.status(400).json({ error: "Registration Number is required." });
   }
 
   try {
-    const student = await prisma.student.findFirst({
-      where: { regNumber: regNumber.trim().toUpperCase() },
-      select: { securityQuestion: true },
-    });
+    const normalizedReg = regNumber.trim().toUpperCase();
+    let student;
+    if (schoolCode) {
+      const school = await prisma.school.findUnique({ where: { code: schoolCode.trim().toUpperCase() } });
+      student = school
+        ? await prisma.student.findUnique({ where: { schoolId_regNumber: { schoolId: school.id, regNumber: normalizedReg } }, select: { securityQuestion: true } })
+        : null;
+    } else {
+      student = await prisma.student.findFirst({ where: { regNumber: normalizedReg }, select: { securityQuestion: true } });
+    }
 
     if (!student) {
       return res.status(404).json({ error: "Registration Number not found." });
@@ -467,7 +491,7 @@ app.post("/api/auth/student-get-security-question", strictLimiter, async (req, r
 
 // Forgot password  -  verify security answer and set a new password
 app.post("/api/auth/student-forgot-password", strictLimiter, async (req, res) => {
-  const { regNumber, securityAnswer, newPassword, confirmPassword } = req.body;
+  const { regNumber, securityAnswer, newPassword, confirmPassword, schoolCode } = req.body;
   if (!regNumber || !securityAnswer || !newPassword || !confirmPassword) {
     return res.status(400).json({ error: "All fields are required." });
   }
@@ -483,7 +507,15 @@ app.post("/api/auth/student-forgot-password", strictLimiter, async (req, res) =>
       return res.status(400).json({ error: "Your password cannot be the same as your registration number." });
     }
 
-    const student = await prisma.student.findFirst({ where: { regNumber: normalizedReg } });
+    let student;
+    if (schoolCode) {
+      const school = await prisma.school.findUnique({ where: { code: schoolCode.trim().toUpperCase() } });
+      student = school
+        ? await prisma.student.findUnique({ where: { schoolId_regNumber: { schoolId: school.id, regNumber: normalizedReg } } })
+        : null;
+    } else {
+      student = await prisma.student.findFirst({ where: { regNumber: normalizedReg } });
+    }
     if (!student) {
       return res.status(400).json({ error: "Incorrect registration number or security answer." });
     }
@@ -528,7 +560,7 @@ app.post("/api/auth/student-forgot-password", strictLimiter, async (req, res) =>
 
 // Answer security question and fix/update year
 app.post("/api/auth/student-fix-year", strictLimiter, async (req, res) => {
-  const { regNumber, securityAnswer, newYear } = req.body;
+  const { regNumber, securityAnswer, newYear, schoolCode } = req.body;
 
   if (!regNumber || !securityAnswer || !newYear) {
     return res.status(400).json({ error: "Registration Number, security answer, and target Year of Study are required." });
@@ -539,9 +571,15 @@ app.post("/api/auth/student-fix-year", strictLimiter, async (req, res) => {
 
   try {
     const normalizedReg = regNumber.trim().toUpperCase();
-    const student = await prisma.student.findFirst({
-      where: { regNumber: normalizedReg },
-    });
+    let student;
+    if (schoolCode) {
+      const school = await prisma.school.findUnique({ where: { code: schoolCode.trim().toUpperCase() } });
+      student = school
+        ? await prisma.student.findUnique({ where: { schoolId_regNumber: { schoolId: school.id, regNumber: normalizedReg } } })
+        : null;
+    } else {
+      student = await prisma.student.findFirst({ where: { regNumber: normalizedReg } });
+    }
 
     if (!student) {
       // Return a generic message to prevent account enumeration
@@ -606,10 +644,10 @@ app.post("/api/auth/student-fix-year", strictLimiter, async (req, res) => {
 
 // Lecturer Registration Route
 app.post("/api/auth/lecturer-register", authLimiter, async (req, res) => {
-  const { name, email, password, schoolId } = req.body;
+  const { name, email, password, schoolCode } = req.body;
 
-  if (!name || !email || !password || !schoolId) {
-    return res.status(400).json({ error: "Name, email, password, and school are required." });
+  if (!name || !email || !password || !schoolCode) {
+    return res.status(400).json({ error: "Name, email, password, and school code are required." });
   }
   if (password.length < 8) {
     return res.status(400).json({ error: "Password must be at least 8 characters." });
@@ -619,16 +657,17 @@ app.post("/api/auth/lecturer-register", authLimiter, async (req, res) => {
   }
 
   try {
-    // Validate school
-    const school = await prisma.school.findUnique({ where: { id: schoolId } });
-    if (!school) return res.status(400).json({ error: "Invalid school selected." });
+    // Look up school by code (never accept a client-supplied UUID)
+    const school = await prisma.school.findUnique({ where: { code: schoolCode.trim().toUpperCase() } });
+    if (!school) return res.status(400).json({ error: "Invalid school code." });
     if (!school.isActive) return res.status(400).json({ error: "This school is not currently active." });
 
+    const schoolId = school.id;
     const normalizedEmail = email.trim().toLowerCase();
 
     const existingLecturer = await prisma.lecturer.findUnique({ where: { email: normalizedEmail } });
     if (existingLecturer) {
-      return res.status(400).json({ error: "This email address is already registered as a lecturer." });
+      return res.status(400).json({ error: "This email address is already registered as a staff member." });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -1060,7 +1099,7 @@ app.get("/api/courses/:id", authenticateToken, async (req: any, res) => {
 app.get("/api/notes", authenticateToken, async (req: any, res) => {
   const { courseId } = req.query;
   try {
-    const where: any = {};
+    const where: any = { schoolId: req.user.schoolId };
     if (courseId) {
       where.courseId = String(courseId);
     }
@@ -1127,6 +1166,7 @@ app.post("/api/notes", authenticateToken, async (req: any, res) => {
         title,
         content,
         courseId,
+        schoolId: req.user.schoolId,
       },
     });
     return res.status(201).json(newNote);
@@ -1144,6 +1184,8 @@ app.delete("/api/notes/:id", authenticateToken, async (req: any, res) => {
 
   const { id } = req.params;
   try {
+    const note = await prisma.lectureNote.findUnique({ where: { id } });
+    if (!note || note.schoolId !== req.user.schoolId) return res.status(404).json({ error: "Note not found" });
     await prisma.lectureNote.delete({ where: { id } });
     return res.json({ message: "Lecture note deleted successfully" });
   } catch (error: any) {
@@ -1183,6 +1225,7 @@ app.post("/api/quizzes", authenticateToken, async (req: any, res) => {
         title,
         durationMinutes: parseInt(durationMinutes, 10),
         courseId,
+        schoolId: req.user.schoolId,
         availableFrom: availableFrom ? new Date(availableFrom) : undefined,
         availableUntil: availableUntil ? new Date(availableUntil) : undefined,
       },
@@ -1193,6 +1236,7 @@ app.post("/api/quizzes", authenticateToken, async (req: any, res) => {
       await prisma.question.create({
         data: {
           quizId: quiz.id,
+          schoolId: req.user.schoolId,
           text: q.text,
           optionsJson: JSON.stringify(q.options),
           correctOption: q.correctOption,
@@ -1333,7 +1377,7 @@ app.get("/api/quizzes/:id", authenticateToken, async (req: any, res) => {
       },
     });
 
-    if (!quiz) {
+    if (!quiz || quiz.schoolId !== req.user.schoolId) {
       return res.status(404).json({ error: "Quiz not found" });
     }
 
@@ -1381,7 +1425,7 @@ app.post("/api/quiz/start", authenticateToken, async (req: any, res) => {
 
   try {
     const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
-    if (!quiz) {
+    if (!quiz || quiz.schoolId !== req.user.schoolId) {
       return res.status(404).json({ error: "Quiz not found" });
     }
 
@@ -1435,6 +1479,7 @@ app.post("/api/quiz/start", authenticateToken, async (req: any, res) => {
         data: {
           quizId,
           studentId: req.user.id,
+          schoolId: req.user.schoolId,
           startedAt: new Date(),
           isCompleted: false,
         },
@@ -1840,11 +1885,11 @@ app.get("/api/departments/stats", authenticateToken, async (req: any, res) => {
         const studentCount = await prisma.student.count({ where: { department: dept.name, schoolId: req.user.schoolId } });
 
         const gradedExamSubs = await prisma.examSubmission.findMany({
-          where: { isGraded: true, student: { department: dept.name } },
+          where: { schoolId: req.user.schoolId, isGraded: true, student: { department: dept.name } },
           select: { score: true, totalMarks: true },
         });
         const gradedAsgSubs = await prisma.assignmentSubmission.findMany({
-          where: { isGraded: true, student: { department: dept.name } },
+          where: { schoolId: req.user.schoolId, isGraded: true, student: { department: dept.name } },
           select: { score: true, totalMarks: true },
         });
 
@@ -1878,8 +1923,13 @@ app.get("/api/departments/stats", authenticateToken, async (req: any, res) => {
 
 app.get("/api/departments", optionalAuth, async (req: any, res) => {
   try {
-    // Filter by schoolId from query param (public registration), or from JWT (authenticated users)
-    const schoolId = (req.query.schoolId as string) || req.user?.schoolId;
+    // Authenticated users: scope by JWT schoolId (never from query)
+    // Public (registration): resolve schoolId from schoolCode query param
+    let schoolId: string | undefined = req.user?.schoolId;
+    if (!schoolId && req.query.schoolCode) {
+      const school = await prisma.school.findUnique({ where: { code: String(req.query.schoolCode).trim().toUpperCase() } });
+      schoolId = school?.id;
+    }
     const where: any = schoolId ? { schoolId } : {};
     const departments = await prisma.department.findMany({
       where,
@@ -1947,7 +1997,7 @@ app.patch("/api/student/department", authenticateToken, async (req: any, res) =>
   const { department } = req.body;
   if (!department?.trim()) return res.status(400).json({ error: "Department name is required." });
   try {
-    const dept = await prisma.department.findFirst({ where: { name: department.trim() } });
+    const dept = await prisma.department.findFirst({ where: { name: department.trim(), schoolId: req.user.schoolId } });
     if (!dept) return res.status(400).json({ error: "Department not found." });
     await prisma.student.update({ where: { id: req.user.id }, data: { department: department.trim() } });
     return res.json({ success: true, department: department.trim() });
@@ -1964,7 +2014,7 @@ app.patch("/api/student/additional-departments", authenticateToken, async (req: 
     // Validate all names exist
     const names: string[] = departments.map((d: any) => String(d).trim()).filter(Boolean);
     if (names.length > 0) {
-      const found = await prisma.department.findMany({ where: { name: { in: names } }, select: { name: true } });
+      const found = await prisma.department.findMany({ where: { name: { in: names }, schoolId: req.user.schoolId }, select: { name: true } });
       const foundNames = new Set(found.map(d => d.name));
       const invalid = names.filter(n => !foundNames.has(n));
       if (invalid.length > 0) return res.status(400).json({ error: `Unknown departments: ${invalid.join(", ")}` });
@@ -2313,6 +2363,7 @@ app.post("/api/exams", authenticateToken, upload.single("file"), async (req: any
       data: {
         title,
         courseId,
+        schoolId: req.user.schoolId,
         questionsText,
         questionsStructureJson: questionsStructureJson || null,
         answerKeyJson: answerKeyJson || null,
@@ -2331,10 +2382,11 @@ app.post("/api/exams", authenticateToken, upload.single("file"), async (req: any
 app.get("/api/exams", authenticateToken, async (req: any, res) => {
   const { courseId } = req.query;
   try {
-    let courseFilter: any = {};
+    let courseFilter: any = { schoolId: req.user.schoolId };
     if (req.user.role === "student") {
       const { depts, year } = await getStudentFilter(req.user.id);
       courseFilter = {
+        schoolId: req.user.schoolId,
         AND: [
           { OR: [{ departmentId: null }, { department: { name: { in: depts } } }] },
           { OR: [{ targetYear: null }, { targetYear: year }] },
@@ -2343,6 +2395,7 @@ app.get("/api/exams", authenticateToken, async (req: any, res) => {
     }
     const exams = await prisma.exam.findMany({
       where: {
+        schoolId: req.user.schoolId,
         ...(courseId ? { courseId: String(courseId) } : {}),
         course: courseFilter,
       },
@@ -2363,7 +2416,7 @@ app.get("/api/exams/:id", authenticateToken, async (req: any, res) => {
       where: { id: req.params.id },
       include: { course: { select: { code: true, title: true, lecturerId: true } } },
     });
-    if (!exam) return res.status(404).json({ error: "Exam not found" });
+    if (!exam || exam.schoolId !== req.user.schoolId) return res.status(404).json({ error: "Exam not found" });
     if (req.user.role === "student") {
       const { answerKeyText: _a, answerKeyJson: _b, ...safe } = exam as any;
       return res.json(safe);
@@ -2443,7 +2496,7 @@ app.post("/api/exams/:id/submit", authenticateToken, async (req: any, res) => {
       ]);
     }
     const submission = await prisma.examSubmission.create({
-      data: { examId: req.params.id, studentId: req.user.id, answersText },
+      data: { examId: req.params.id, studentId: req.user.id, schoolId: req.user.schoolId, answersText },
     });
     return res.status(201).json(submission);
   } catch (err) {
@@ -2592,6 +2645,7 @@ app.post("/api/assignments", authenticateToken, upload.single("file"), async (re
       data: {
         title,
         courseId,
+        schoolId: req.user.schoolId,
         description: description || null,
         questionsText,
         questionsStructureJson: questionsStructureJson || null,
@@ -2609,10 +2663,11 @@ app.post("/api/assignments", authenticateToken, upload.single("file"), async (re
 app.get("/api/assignments", authenticateToken, async (req: any, res) => {
   const { courseId } = req.query;
   try {
-    let courseFilter: any = {};
+    let courseFilter: any = { schoolId: req.user.schoolId };
     if (req.user.role === "student") {
       const { depts, year } = await getStudentFilter(req.user.id);
       courseFilter = {
+        schoolId: req.user.schoolId,
         AND: [
           { OR: [{ departmentId: null }, { department: { name: { in: depts } } }] },
           { OR: [{ targetYear: null }, { targetYear: year }] },
@@ -2621,6 +2676,7 @@ app.get("/api/assignments", authenticateToken, async (req: any, res) => {
     }
     const assignments = await prisma.assignment.findMany({
       where: {
+        schoolId: req.user.schoolId,
         ...(courseId ? { courseId: String(courseId) } : {}),
         course: courseFilter,
       },
@@ -2639,7 +2695,7 @@ app.get("/api/assignments/:id", authenticateToken, async (req: any, res) => {
       where: { id: req.params.id },
       include: { course: { select: { code: true, title: true, lecturerId: true } } },
     });
-    if (!assignment) return res.status(404).json({ error: "Assignment not found" });
+    if (!assignment || assignment.schoolId !== req.user.schoolId) return res.status(404).json({ error: "Assignment not found" });
     if (req.user.role === "student") {
       const { answerKeyText: _a, answerKeyJson: _b, ...safe } = assignment as any;
       return res.json(safe);
@@ -2713,6 +2769,7 @@ app.post("/api/assignments/:id/submit", authenticateToken, async (req: any, res)
       data: {
         assignmentId: req.params.id,
         studentId: req.user.id,
+        schoolId: req.user.schoolId,
         answersText: answersText || "",
         ...(attachmentName ? { attachmentName } : {}),
         ...(attachmentData ? { attachmentData } : {}),
@@ -2931,6 +2988,7 @@ app.put("/api/quizzes/:id", authenticateToken, async (req: any, res) => {
           availableUntil: availableUntil ? new Date(availableUntil) : null,
           questions: {
             create: questions.map((q: any) => ({
+              schoolId: req.user.schoolId,
               text: q.text,
               optionsJson: JSON.stringify(q.options),
               correctOption: q.correctOption,
@@ -2965,8 +3023,10 @@ app.post("/api/quizzes/:id/duplicate", authenticateToken, async (req: any, res) 
         title: `${quiz.title} (Copy)`,
         durationMinutes: quiz.durationMinutes,
         courseId: quiz.courseId,
+        schoolId: quiz.schoolId,
         questions: {
           create: quiz.questions.map((q) => ({
+            schoolId: quiz.schoolId,
             text: q.text,
             optionsJson: q.optionsJson,
             correctOption: q.correctOption,
@@ -3049,7 +3109,7 @@ app.get("/api/quizzes/:id/analytics", authenticateToken, async (req: any, res) =
 app.get("/api/quizzes/:id/leaderboard", authenticateToken, async (req: any, res) => {
   try {
     const attempts = await prisma.studentAttempt.findMany({
-      where: { quizId: req.params.id, isCompleted: true },
+      where: { quizId: req.params.id, schoolId: req.user.schoolId, isCompleted: true },
       include: { student: { select: { id: true, department: true } } },
       orderBy: { score: "desc" },
       take: 20,
@@ -3078,8 +3138,10 @@ app.get("/api/calendar", authenticateToken, async (req: any, res) => {
     const events: Array<{ id: string; type: string; title: string; courseCode: string; date: string; label: string }> = [];
 
     if (role === "student") {
+      const schoolId = req.user.schoolId;
       const { depts, year } = await getStudentFilter(id);
       const courseFilter = {
+        schoolId,
         AND: [
           { OR: [{ departmentId: null }, { department: { name: { in: depts } } }] },
           { OR: [{ targetYear: null }, { targetYear: year }] },
@@ -3087,15 +3149,15 @@ app.get("/api/calendar", authenticateToken, async (req: any, res) => {
       };
       const [quizzes, exams, assignments] = await Promise.all([
         prisma.quiz.findMany({
-          where: { course: courseFilter },
+          where: { schoolId, course: courseFilter },
           include: { course: { select: { code: true } } },
         }),
         prisma.exam.findMany({
-          where: { isOpen: true, course: courseFilter },
+          where: { schoolId, isOpen: true, course: courseFilter },
           include: { course: { select: { code: true } } },
         }),
         prisma.assignment.findMany({
-          where: { isOpen: true, dueDate: { not: null }, course: courseFilter },
+          where: { schoolId, isOpen: true, dueDate: { not: null }, course: courseFilter },
           include: { course: { select: { code: true } } },
         }),
       ]);
@@ -3111,17 +3173,18 @@ app.get("/api/calendar", authenticateToken, async (req: any, res) => {
         if (a.dueDate) events.push({ id: `ad_${a.id}`, type: "assignment", title: a.title, courseCode: a.course.code, date: a.dueDate.toISOString(), label: "Due" });
       });
     } else if (role === "lecturer") {
+      const schoolId = req.user.schoolId;
       const [quizzes, exams, assignments] = await Promise.all([
         prisma.quiz.findMany({
-          where: { course: { lecturerId: id } },
+          where: { schoolId, course: { lecturerId: id } },
           include: { course: { select: { code: true } } },
         }),
         prisma.exam.findMany({
-          where: { course: { lecturerId: id } },
+          where: { schoolId, course: { lecturerId: id } },
           include: { course: { select: { code: true } } },
         }),
         prisma.assignment.findMany({
-          where: { dueDate: { not: null }, course: { lecturerId: id } },
+          where: { schoolId, dueDate: { not: null }, course: { lecturerId: id } },
           include: { course: { select: { code: true } } },
         }),
       ]);
@@ -3334,20 +3397,20 @@ app.get("/api/notifications", authenticateToken, async (req: any, res) => {
           time: s.submittedAt.toISOString() });
       });
 
-      // New quizzes, exams, assignments posted recently
+      // New quizzes, exams, assignments posted recently (scoped to this school)
       const [newQuizzes, newExams, newAssignments] = await Promise.all([
         prisma.quiz.findMany({
-          where: { availableFrom: { gte: sevenDaysAgo } },
+          where: { schoolId: req.user.schoolId, availableFrom: { gte: sevenDaysAgo } },
           include: { course: { select: { code: true, title: true } } },
           orderBy: { availableFrom: "desc" }, take: 3,
         }),
         prisma.exam.findMany({
-          where: { isOpen: true, createdAt: { gte: sevenDaysAgo } },
+          where: { schoolId: req.user.schoolId, isOpen: true, createdAt: { gte: sevenDaysAgo } },
           include: { course: { select: { code: true } } },
           orderBy: { createdAt: "desc" }, take: 3,
         }),
         prisma.assignment.findMany({
-          where: { isOpen: true, createdAt: { gte: sevenDaysAgo } },
+          where: { schoolId: req.user.schoolId, isOpen: true, createdAt: { gte: sevenDaysAgo } },
           include: { course: { select: { code: true } } },
           orderBy: { createdAt: "desc" }, take: 3,
         }),
@@ -3460,6 +3523,7 @@ app.post("/api/question-bank", authenticateToken, async (req: any, res) => {
     const created = await prisma.bankQuestion.createMany({
       data: questions.map((q: any) => ({
         lecturerId: req.user.id,
+        schoolId: req.user.schoolId,
         text: String(q.text || ""),
         optionsJson: typeof q.optionsJson === "string" ? q.optionsJson : JSON.stringify(q.options ?? []),
         correctOption: String(q.correctOption || ""),

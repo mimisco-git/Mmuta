@@ -5,12 +5,23 @@ async function migrateColumns() {
   const stmts = [
     'ALTER TABLE "Lecturer" ADD COLUMN "avatarData" TEXT',
     'ALTER TABLE "Student"  ADD COLUMN "avatarData" TEXT',
+    // Multi-tenancy: add schoolId to previously unscoped models (idempotent)
+    'ALTER TABLE "Exam"                 ADD COLUMN "schoolId" TEXT NOT NULL DEFAULT ""',
+    'ALTER TABLE "ExamSubmission"       ADD COLUMN "schoolId" TEXT NOT NULL DEFAULT ""',
+    'ALTER TABLE "LectureNote"          ADD COLUMN "schoolId" TEXT NOT NULL DEFAULT ""',
+    'ALTER TABLE "Quiz"                 ADD COLUMN "schoolId" TEXT NOT NULL DEFAULT ""',
+    'ALTER TABLE "Question"             ADD COLUMN "schoolId" TEXT NOT NULL DEFAULT ""',
+    'ALTER TABLE "StudentAttempt"       ADD COLUMN "schoolId" TEXT NOT NULL DEFAULT ""',
+    'ALTER TABLE "Assignment"           ADD COLUMN "schoolId" TEXT NOT NULL DEFAULT ""',
+    'ALTER TABLE "AssignmentSubmission" ADD COLUMN "schoolId" TEXT NOT NULL DEFAULT ""',
+    'ALTER TABLE "BankQuestion"         ADD COLUMN "schoolId" TEXT NOT NULL DEFAULT ""',
+    'ALTER TABLE "School"               ADD COLUMN "logoUrl"  TEXT',
   ];
   for (const sql of stmts) {
     try {
       await prisma.$executeRawUnsafe(sql);
     } catch {
-      // Column already exists  -  ignore
+      // Column already exists — ignore
     }
   }
 }
@@ -158,6 +169,7 @@ export async function seedDatabase() {
     await prisma.lectureNote.create({
       data: {
         title: "Lecture 1: Introduction to Variables & Data Types",
+        schoolId: demoSchool.id,
         content: `## Introduction to Programming Concepts
 
 Programming is the process of writing instructions that a computer can execute. In this lecture, we will cover the fundamentals of memory allocation through variables and data types.
@@ -193,6 +205,7 @@ Most programming languages support the following fundamental primitive types:
     await prisma.lectureNote.create({
       data: {
         title: "Lecture 1: Sets, Relations & Functions",
+        schoolId: demoSchool.id,
         content: `## Introductory Set Theory
 
 Set theory is the branch of mathematical logic that studies sets, which are informal collections of objects.
@@ -221,8 +234,9 @@ A relation $f$ from set $X$ to set $Y$ is a function if every element $x \\in X$
     const quiz1 = await prisma.quiz.create({
       data: {
         title: "CSC 201 Midterm Assessment",
-        durationMinutes: 10, // 10 minutes duration for easy testing
+        durationMinutes: 10,
         courseId: csc201.id,
+        schoolId: demoSchool.id,
       },
     });
 
@@ -276,7 +290,7 @@ A relation $f$ from set $X$ to set $Y$ is a function if every element $x \\in X$
 
     for (const q of questions1) {
       await prisma.question.create({
-        data: q,
+        data: { ...q, schoolId: demoSchool.id },
       });
     }
 
@@ -284,8 +298,9 @@ A relation $f$ from set $X$ to set $Y$ is a function if every element $x \\in X$
     const quiz2 = await prisma.quiz.create({
       data: {
         title: "MTH 101 Pop Quiz on Set Theory",
-        durationMinutes: 5, // 5 minutes duration
+        durationMinutes: 5,
         courseId: mth101.id,
+        schoolId: demoSchool.id,
       },
     });
 
@@ -317,7 +332,7 @@ A relation $f$ from set $X$ to set $Y$ is a function if every element $x \\in X$
 
     for (const q of questions2) {
       await prisma.question.create({
-        data: q,
+        data: { ...q, schoolId: demoSchool.id },
       });
     }
 
