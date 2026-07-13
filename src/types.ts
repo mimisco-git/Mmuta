@@ -22,6 +22,7 @@ export interface School {
   phone?: string;
   address?: string;
   isActive: boolean;
+  creditBalance: number;
   createdAt: string;
   _count?: { students: number; lecturers: number; courses: number };
 }

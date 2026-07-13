@@ -9,21 +9,31 @@ generator client {
 }
 
 model School {
-  id          String       @id @default(uuid())
-  name        String
-  code        String       @unique  // e.g. "FUTO", "UNIZIK", "ESUT"
-  email       String?
-  phone       String?
-  address     String?
-  logoData    String?
-  isActive    Boolean      @default(true)
-  createdAt   DateTime     @default(now())
+  id               String              @id @default(uuid())
+  name             String
+  code             String              @unique
+  email            String?
+  phone            String?
+  address          String?
+  isActive         Boolean             @default(true)
+  creditBalance    Int                 @default(0)
+  createdAt        DateTime            @default(now())
+  lecturers        Lecturer[]
+  students         Student[]
+  departments      Department[]
+  courses          Course[]
+  examPins         ExamPin[]
+  creditTransactions CreditTransaction[]
+}
 
-  lecturers   Lecturer[]
-  students    Student[]
-  departments Department[]
-  courses     Course[]
-  examPins    ExamPin[]
+model CreditTransaction {
+  id          String   @id @default(uuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  amount      Int
+  type        String
+  description String
+  createdAt   DateTime @default(now())
 }
 
 model SuperAdmin {
@@ -40,34 +50,32 @@ model Lecturer {
   email         String         @unique
   password      String
   avatarData    String?
-  departments   String         @default("[]") // JSON array of dept names this lecturer teaches
+  departments   String         @default("[]")
+  isAdmin       Boolean        @default(false)
   schoolId      String
   school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  isAdmin       Boolean        @default(false)
   courses       Course[]
-  announcements Announcement[]
   bankQuestions BankQuestion[]
 }
 
 model Student {
-  id               String           @id @default(uuid())
-  fullName         String
-  email            String?
-  regNumber        String           // Normalized e.g. FUTO/2026/10423
-  passwordHash     String?          // null = account not yet migrated
-  mustChangePassword Boolean        @default(false)
-  department            String           @default("Computer Science")
-  additionalDepartments String           @default("[]") // JSON array of extra dept names (borrowed courses, extra year)
-  year             String           @default("Year 1")
-  securityQuestion String           @default("What is your favorite academic course?")
-  securityAnswer   String           @default("Computer Science")
-  avatarData       String?
-  schoolId         String
-  school           School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  attempts               StudentAttempt[]
-  examSubmissions        ExamSubmission[]
-  assignmentSubmissions  AssignmentSubmission[]
-  examPins               ExamPin[]
+  id                    String                 @id @default(uuid())
+  fullName              String
+  email                 String?
+  regNumber             String
+  passwordHash          String?
+  mustChangePassword    Boolean                @default(false)
+  department            String                 @default("Computer Science")
+  additionalDepartments String                 @default("[]")
+  year                  String                 @default("Year 1")
+  securityQuestion      String                 @default("What is your favorite academic course?")
+  securityAnswer        String                 @default("Computer Science")
+  avatarData            String?
+  schoolId              String
+  school                School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  attempts              StudentAttempt[]
+  examSubmissions       ExamSubmission[]
+  assignmentSubmissions AssignmentSubmission[]
 
   @@unique([schoolId, regNumber])
 }
@@ -76,7 +84,7 @@ model Department {
   id        String   @id @default(uuid())
   name      String
   schoolId  String
-  school    School   @relation(fields: [schoolId], references: [id])
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   courses   Course[]
 
@@ -84,41 +92,40 @@ model Department {
 }
 
 model Course {
-  id            String           @id @default(uuid())
-  code          String           // e.g. MTH101, CSC201
-  title         String
-  lecturerId    String
-  lecturer      Lecturer         @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
-  departmentId  String?
-  department    Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  targetYear    String?          // null = all years, "Year 1", "Year 2", etc.
-  schoolId      String
-  school        School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  notes         LectureNote[]
-  quizzes       Quiz[]
-  liveSessions  LectureSession[]
-  exams         Exam[]
-  assignments   Assignment[]
-  announcements Announcement[]
-  discussions   DiscussionThread[]
+  id           String        @id @default(uuid())
+  code         String
+  title        String
+  lecturerId   String
+  lecturer     Lecturer      @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+  departmentId String?
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  targetYear   String?
+  schoolId     String
+  school       School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  notes        LectureNote[]
+  quizzes      Quiz[]
+  exams        Exam[]
+  assignments  Assignment[]
+
+  @@unique([schoolId, code])
 }
 
 model Exam {
-  id                    String          @id @default(uuid())
-  title                 String
-  courseId              String
-  course                Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  questionsText         String
-  questionsStructureJson String?        // JSON: parsed question tree [{label,text,subqs:[{label,text}]}]
-  answerKeyText         String?
-  answerKeyJson         String?         // JSON: [{qLabel,answer,marks}] — structured key, primary for grading
-  marksText             String?
-  isOpen                Boolean         @default(true)
-  availableFrom         DateTime?
-  availableUntil        DateTime?
-  createdAt             DateTime        @default(now())
-  submissions           ExamSubmission[]
-  examPins              ExamPin[]
+  id                     String           @id @default(uuid())
+  title                  String
+  courseId               String
+  course                 Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  questionsText          String
+  questionsStructureJson String?
+  answerKeyText          String?
+  answerKeyJson          String?
+  marksText              String?
+  isOpen                 Boolean          @default(true)
+  availableFrom          DateTime?
+  availableUntil         DateTime?
+  createdAt              DateTime         @default(now())
+  submissions            ExamSubmission[]
+  pins                   ExamPin[]
 }
 
 model ExamSubmission {
@@ -127,18 +134,20 @@ model ExamSubmission {
   exam        Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
   studentId   String
   student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  answersText String   // Student's typed answers
-  score       Float?   // AI-graded: actual marks if totalMarks set, else 0–100 percentage
-  totalMarks  Float?   // Maximum possible marks (null = legacy percentage mode)
-  feedback    String?  // AI feedback text
+  answersText String
+  score       Float?
+  totalMarks  Float?
+  feedback    String?
   isGraded    Boolean  @default(false)
   submittedAt DateTime @default(now())
+
+  @@unique([examId, studentId])
 }
 
 model LectureNote {
   id        String   @id @default(uuid())
   title     String
-  content   String   // Text or rich text Markdown content
+  content   String
   createdAt DateTime @default(now())
   courseId  String
   course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -147,7 +156,7 @@ model LectureNote {
 model Quiz {
   id              String           @id @default(uuid())
   title           String
-  durationMinutes Int              // Allowed time in minutes
+  durationMinutes Int
   availableFrom   DateTime?
   availableUntil  DateTime?
   courseId        String
@@ -160,9 +169,9 @@ model Question {
   id            String @id @default(uuid())
   quizId        String
   quiz          Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  text          String // The question prompt
-  optionsJson   String // Serialized JSON array of options: ["A", "B", "C", "D"]
-  correctOption String // The correct option
+  text          String
+  optionsJson   String
+  correctOption String
 }
 
 model StudentAttempt {
@@ -174,101 +183,26 @@ model StudentAttempt {
   startedAt   DateTime  @default(now())
   submittedAt DateTime?
   isCompleted Boolean   @default(false)
-  score       Float?    // Calculated score percentage or count
-  answersJson String?   // Serialized JSON of selected answers: {"questionId": "answer"}
-  violations  Int       @default(0) // Proctoring: tab-switch / focus-loss count
-}
-
-model LectureSession {
-  id             String               @id @default(uuid())
-  topic          String
-  content        String
-  isActive       Boolean              @default(true)
-  createdAt      DateTime             @default(now())
-  courseId       String
-  course         Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  jitsiRoom      String?
-  currentSlide   Int                  @default(0)
-  aiSummary      String?
-  attachmentName String?
-  attachmentData String?
-  chats          LectureChat[]
-  attendance     LectureAttendance[]
-  handRaises     HandRaise[]
-  polls          LecturePoll[]
-}
-
-model LectureAttendance {
-  id        String         @id @default(uuid())
-  sessionId String
-  session   LectureSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  studentId String
-  studentName String
-  joinedAt  DateTime       @default(now())
-
-  @@unique([sessionId, studentId])
-}
-
-model HandRaise {
-  id               String         @id @default(uuid())
-  sessionId        String
-  session          LectureSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  studentId        String
-  studentName      String
-  raisedAt         DateTime       @default(now())
-  isResolved       Boolean        @default(false)
-  allowedToSpeak   Boolean        @default(false)
-}
-
-model LecturePoll {
-  id          String         @id @default(uuid())
-  sessionId   String
-  session     LectureSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  question    String
-  optionsJson String
-  isActive    Boolean        @default(true)
-  createdAt   DateTime       @default(now())
-  responses   PollResponse[]
-}
-
-model PollResponse {
-  id          String      @id @default(uuid())
-  pollId      String
-  poll        LecturePoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  studentId   String
-  studentName String
-  answer      String
-  respondedAt DateTime    @default(now())
-
-  @@unique([pollId, studentId])
-}
-
-model LectureChat {
-  id               String         @id @default(uuid())
-  senderId         String         @default("")
-  senderName       String
-  senderRole       String         // "student" | "lecturer"
-  message          String
-  createdAt        DateTime       @default(now())
-  lectureSessionId String
-  lectureSession   LectureSession @relation(fields: [lectureSessionId], references: [id], onDelete: Cascade)
+  score       Float?
+  answersJson String?
+  violations  Int       @default(0)
 }
 
 model Assignment {
-  id                    String                 @id @default(uuid())
-  title                 String
-  courseId              String
-  course                Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  description           String?
-  questionsText         String
+  id                     String                 @id @default(uuid())
+  title                  String
+  courseId               String
+  course                 Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  description            String?
+  questionsText          String
   questionsStructureJson String?
-  answerKeyText         String?
-  answerKeyJson         String?               // JSON: [{qLabel,answer,marks}]
-  marksText             String?
-  dueDate               DateTime?
-  isOpen                Boolean                @default(true)
-  createdAt             DateTime               @default(now())
-  submissions           AssignmentSubmission[]
+  answerKeyText          String?
+  answerKeyJson          String?
+  marksText              String?
+  dueDate                DateTime?
+  isOpen                 Boolean                @default(true)
+  createdAt              DateTime               @default(now())
+  submissions            AssignmentSubmission[]
 }
 
 model AssignmentSubmission {
@@ -278,10 +212,10 @@ model AssignmentSubmission {
   studentId      String
   student        Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
   answersText    String
-  attachmentName String?    // Optional uploaded file name
-  attachmentData String?    // Optional base64 data URI of uploaded file
-  score          Float?     // Actual marks if totalMarks set, else 0–100 percentage
-  totalMarks     Float?     // Maximum possible marks (null = legacy percentage mode)
+  attachmentName String?
+  attachmentData String?
+  score          Float?
+  totalMarks     Float?
   feedback       String?
   isGraded       Boolean    @default(false)
   submittedAt    DateTime   @default(now())
@@ -289,65 +223,17 @@ model AssignmentSubmission {
   @@unique([assignmentId, studentId])
 }
 
-model Announcement {
-  id         String    @id @default(uuid())
-  title      String
-  body       String
-  lecturerId String
-  courseId   String?
-  createdAt  DateTime  @default(now())
-  lecturer   Lecturer  @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
-  course     Course?   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-}
-
-model PushSubscription {
-  id        String   @id @default(uuid())
-  userId    String
-  userRole  String
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  createdAt DateTime @default(now())
-}
-
-model DiscussionThread {
-  id         String            @id @default(uuid())
-  courseId   String
-  course     Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  authorId   String
-  authorRole String            // "student" | "lecturer"
-  authorName String
-  title      String
-  body       String
-  isPinned   Boolean           @default(false)
-  createdAt  DateTime          @default(now())
-  replies    DiscussionReply[]
-}
-
-model DiscussionReply {
-  id         String           @id @default(uuid())
-  threadId   String
-  thread     DiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  authorId   String
-  authorRole String
-  authorName String
-  body       String
-  createdAt  DateTime         @default(now())
-}
-
 model ExamPin {
-  id         String    @id @default(uuid())
-  pin        String    @unique
-  examId     String
-  exam       Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
-  studentId  String?
-  student    Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
-  schoolId   String
-  school     School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  isUsed     Boolean   @default(false)
-  usedAt     DateTime?
-  createdAt  DateTime  @default(now())
-  label      String?   // e.g. student name for walk-in candidates
+  id        String    @id @default(uuid())
+  pin       String    @unique
+  examId    String
+  exam      Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  schoolId  String
+  school    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  label     String?
+  isUsed    Boolean   @default(false)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 }
 
 model BankQuestion {
@@ -355,8 +241,8 @@ model BankQuestion {
   lecturerId    String
   lecturer      Lecturer @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
   text          String
-  optionsJson   String   // JSON array of 4 option strings
+  optionsJson   String
   correctOption String
-  topic         String?  // Optional tag for filtering
+  topic         String?
   createdAt     DateTime @default(now())
 }

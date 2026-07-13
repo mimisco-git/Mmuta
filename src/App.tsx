@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, Routes, Route, Navigate } from "react-router-dom";
+import LandingPage from "./components/LandingPage";
 import LandingScreen from "./components/LandingScreen";
 import StudentDashboard from "./components/StudentDashboard";
 import LecturerDashboard from "./components/LecturerDashboard";
@@ -11,7 +12,7 @@ import { User } from "./types";
 import { motion, AnimatePresence } from "motion/react";
 import { ShieldAlert, Clock, LogOut } from "lucide-react";
 
-const DEEP_LINK_TYPES = ["quiz", "note", "exam", "assignment", "live"] as const;
+const DEEP_LINK_TYPES = ["quiz", "note", "exam", "assignment"] as const;
 type DeepLinkType = typeof DEEP_LINK_TYPES[number];
 
 export default function App() {
@@ -199,141 +200,81 @@ export default function App() {
     return () => clearInterval(interval);
   }, [showSessionExpired]);
 
-  // If pin_candidate, go directly to the exam — no dashboard
+  // pin_candidate bypasses all routing
   if (!loading && token && user?.role === "pin_candidate" && user.examId) {
     return <PinExamSession token={token} examId={user.examId} label={user.label || "Candidate"} onFinish={handleLogout} />;
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-emerald-50 via-white to-green-50/60 dark:from-[#010e07] dark:via-[#011208] dark:to-[#021a0d]">
+      <div className="min-h-screen flex flex-col justify-center items-center bg-white dark:bg-[#0a0f1e]">
         <div className="flex flex-col items-center gap-4">
-          {/* Gradient spinner */}
           <div className="relative w-11 h-11">
-            <div className="absolute inset-0 rounded-full border-[2.5px] border-emerald-100/60 dark:border-emerald-900/40" />
+            <div className="absolute inset-0 rounded-full border-[2.5px] border-blue-100/60 dark:border-blue-900/40" />
             <div
               className="absolute inset-0 rounded-full border-[2.5px] border-transparent"
-              style={{
-                borderTopColor: "#047857",
-                borderRightColor: "#10b981",
-                animation: "spin-smooth 0.85s linear infinite",
-              }}
+              style={{ borderTopColor: "#1a7fe8", borderRightColor: "#60a5fa", animation: "spin-smooth 0.85s linear infinite" }}
             />
           </div>
-          <div className="text-center space-y-0.5">
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">
-              Initializing
-            </p>
-            <p className="text-[9.5px] font-mono text-slate-400 dark:text-slate-600 uppercase tracking-widest">
-              Mmuta Platform
-            </p>
-          </div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">Mmuta</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="font-sans antialiased text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 min-h-screen selection:bg-emerald-500/20 selection:text-emerald-900 relative transition-colors duration-300">
+  // Login flow (used at /login and deep-link routes)
+  const LoginFlow = () => (
+    deepLink && !showLoginFromPreview ? (
+      <motion.div key="deep-link-preview" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+        <DeepLinkPreview type={deepLink.type} id={deepLink.id} onSignIn={() => setShowLoginFromPreview(true)} />
+      </motion.div>
+    ) : (
+      <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+        <LandingScreen theme={theme} onToggleTheme={toggleTheme} onLoginSuccess={handleLoginSuccess} />
+      </motion.div>
+    )
+  );
 
-      <AnimatePresence mode="wait">
-        {!token || !user ? (
-          deepLink && !showLoginFromPreview ? (
-            <motion.div
-              key="deep-link-preview"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-            >
-              <DeepLinkPreview
-                type={deepLink.type}
-                id={deepLink.id}
-                onSignIn={() => setShowLoginFromPreview(true)}
-              />
-            </motion.div>
-          ) : (
-          <motion.div
-            key="landing"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <LandingScreen theme={theme} onToggleTheme={toggleTheme} onLoginSuccess={handleLoginSuccess} />
-          </motion.div>
-          )
-        ) : user.role === "super_admin" ? (
-          <motion.div
-            key="super-admin-dashboard"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <SuperAdminDashboard token={token} user={user} onLogout={handleLogout} />
-          </motion.div>
-        ) : user.role === "student" && user.mustChangePassword ? (
-          <motion.div
-            key="force-change-password"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <ForceChangePasswordScreen
-              token={token}
-              regNumber={user.regNumber || ""}
-              onPasswordChanged={handleLoginSuccess}
-              onLogout={handleLogout}
-            />
-          </motion.div>
-        ) : user.role === "student" ? (
-          <motion.div
-            key="student-dashboard"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <StudentDashboard
-              token={token}
-              user={{
-                id: user.id,
-                fullName: user.fullName || "John Doe",
-                regNumber: user.regNumber || "STU/2025/10001",
-                department: user.department || "Computer Science",
-                year: user.year || "Year 1",
-              }}
-              theme={theme}
-              onToggleTheme={toggleTheme}
-              onLogout={handleLogout}
-              deepLink={deepLink}
-            />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="lecturer-dashboard"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <LecturerDashboard
-              token={token}
-              user={{
-                id: user.id,
-                name: user.name || "Dr. Charles Xavier",
-                email: user.email || "admin@school.edu.ng",
-                isAdmin: user.isAdmin,
-              }}
-              theme={theme}
-              onToggleTheme={toggleTheme}
-              onLogout={handleLogout}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+  // Authenticated dashboard
+  const AuthedApp = () => (
+    <AnimatePresence mode="wait">
+      {user!.role === "super_admin" ? (
+        <motion.div key="super-admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+          <SuperAdminDashboard token={token!} user={user} onLogout={handleLogout} />
+        </motion.div>
+      ) : user!.role === "student" && user!.mustChangePassword ? (
+        <motion.div key="force-pw" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+          <ForceChangePasswordScreen token={token!} regNumber={user!.regNumber || ""} onPasswordChanged={handleLoginSuccess} onLogout={handleLogout} />
+        </motion.div>
+      ) : user!.role === "student" ? (
+        <motion.div key="student" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+          <StudentDashboard
+            token={token!}
+            user={{ id: user!.id, fullName: user!.fullName || "Student", regNumber: user!.regNumber || "", department: user!.department || "General", year: user!.year || "Year 1" }}
+            theme={theme} onToggleTheme={toggleTheme} onLogout={handleLogout} deepLink={deepLink}
+          />
+        </motion.div>
+      ) : (
+        <motion.div key="lecturer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+          <LecturerDashboard
+            token={token!}
+            user={{ id: user!.id, name: user!.name || "Lecturer", email: user!.email || "", isAdmin: user!.isAdmin }}
+            theme={theme} onToggleTheme={toggleTheme} onLogout={handleLogout}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  return (
+    <div className="font-sans antialiased text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 min-h-screen selection:bg-blue-500/20 selection:text-blue-900 relative transition-colors duration-300">
+
+      <Routes>
+        <Route path="/" element={token && user ? <Navigate to="/app" replace /> : <LandingPage onGetStarted={() => window.location.href = "/login"} />} />
+        <Route path="/login" element={token && user ? <Navigate to="/app" replace /> : <LoginFlow />} />
+        <Route path="/app" element={token && user ? <AuthedApp /> : <Navigate to="/login" replace />} />
+        <Route path="*" element={token && user ? <Navigate to="/app" replace /> : <LoginFlow />} />
+      </Routes>
 
       {/* Global Session Expiration Modal — Premium Glass Design */}
       <AnimatePresence>

@@ -8,9 +8,6 @@ import CalendarView from "./CalendarView";
 import MarkdownView from "./MarkdownView";
 import AvatarModal from "./AvatarModal";
 import { motion, AnimatePresence } from "motion/react";
-import SlideView from "./SlideView";
-import DiscussionBoard from "./DiscussionBoard";
-import LiveAudioRoom, { type LiveAudioRoomHandle } from "./LiveAudioRoom";
 import OnboardingTour from "./OnboardingTour";
 
 interface LecturerDashboardProps {
@@ -27,7 +24,7 @@ interface LecturerDashboardProps {
 }
 
 export default function LecturerDashboard({ token, user, theme, onToggleTheme, onLogout }: LecturerDashboardProps) {
-  const [activeTab, setActiveTab] = useState<"gradebook" | "notes" | "quizzes" | "courses" | "departments" | "live-lecture" | "exams" | "assignments" | "announcements" | "analytics" | "calendar" | "discussions" | "school-admin">("gradebook");
+  const [activeTab, setActiveTab] = useState<"gradebook" | "notes" | "quizzes" | "courses" | "departments" | "exams" | "assignments" | "analytics" | "calendar" | "school-admin">("gradebook");
 
   // School-admin local state
   const [saOverview, setSaOverview] = useState<any | null>(null);
@@ -48,7 +45,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
   });
 
   const [courses, setCourses] = useState<Course[]>([]);
-  const [attempts, setAttempts] = useState<StudentAttempt[]>([]);
+  const [attempts, setAttempts] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -115,24 +112,9 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
   const [analyticsQuizTitle, setAnalyticsQuizTitle] = useState("");
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
 
-  // Announcements
-  const [announcements, setAnnouncements] = useState<any[]>([]);
-  const [annTitle, setAnnTitle] = useState("");
-  const [annBody, setAnnBody] = useState("");
-  const [annCourseId, setAnnCourseId] = useState("");
-  const [isPostingAnn, setIsPostingAnn] = useState(false);
 
   const [newDeptName, setNewDeptName] = useState("");
 
-  const [liveCourseId, setLiveCourseId] = useState("");
-  const [liveTopic, setLiveTopic] = useState("");
-  const [liveContent, setLiveContent] = useState("");
-  const [broadcastingSession, setBroadcastingSession] = useState<any | null>(null);
-  const [liveChats, setLiveChats] = useState<any[]>([]);
-  const [lecturerChatMessage, setLecturerChatMessage] = useState("");
-  const [isSendingChat, setIsSendingChat] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
-  const audioRoomRef = useRef<LiveAudioRoomHandle>(null);
 
   const [editingAttemptId, setEditingAttemptId] = useState<string | null>(null);
   const [editingScore, setEditingScore] = useState("");
@@ -185,17 +167,6 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
   const [expandedAssignmentSub, setExpandedAssignmentSub] = useState<string | null>(null);
   const [manualScoreInputs, setManualScoreInputs] = useState<Record<string, string>>({});
 
-  const [liveSubTab, setLiveSubTab] = useState<"audio" | "slides" | "poll" | "attendance" | "chat">("slides");
-  const [pollQuestion, setPollQuestion] = useState("");
-  const [pollOptions, setPollOptions] = useState(["Option A", "Option B", "Option C", "Option D"]);
-  const [attachLiveFile, setAttachLiveFile] = useState<File | null>(null);
-  const [pptxFile, setPptxFile] = useState<File | null>(null);
-  const [isUploadingPptx, setIsUploadingPptx] = useState(false);
-  const [preLaunchPptxFile, setPreLaunchPptxFile] = useState<File | null>(null);
-  const [isParsingPptx, setIsParsingPptx] = useState(false);
-  const [parsedSlideCount, setParsedSlideCount] = useState<number | null>(null);
-  const [isSummarizing, setIsSummarizing] = useState(false);
-  const [sessionSummary, setSessionSummary] = useState<string | null>(null);
 
   const [filterCourseId, setFilterCourseId] = useState("");
   const [filterQuizId, setFilterQuizId] = useState("");
@@ -212,45 +183,12 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    let interval: any;
-    if (activeTab === "live-lecture" && broadcastingSession) {
-      const pollLiveDetails = async () => {
-        try {
-          const res = await fetch(`/api/lectures/active/${broadcastingSession.courseId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data) {
-              setBroadcastingSession(data);
-              setLiveChats(data.chats || []);
-            } else {
-              setBroadcastingSession(null);
-              setLiveChats([]);
-            }
-          }
-        } catch (e) {
-          console.error("Error polling live lecture:", e);
-        }
-      };
-      pollLiveDetails();
-      interval = setInterval(pollLiveDetails, 4000);
-    }
-    return () => clearInterval(interval);
-  }, [activeTab, broadcastingSession?.courseId]);
 
-  useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [liveChats]);
 
   useEffect(() => {
     if (activeTab === "quizzes") fetchQuizList();
     if (activeTab === "exams") fetchExams();
     if (activeTab === "assignments") fetchAssignments();
-    if (activeTab === "announcements") fetchAnnouncements();
     if (activeTab === "analytics" && !lecturerAnalytics) {
       setLecturerAnalyticsLoading(true);
       fetch("/api/lecturer/analytics", { headers: { Authorization: `Bearer ${token}` } })
@@ -262,18 +200,6 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
   }, [activeTab]);
 
 
-  // Keyboard arrow-key slide navigation for lecturer
-  useEffect(() => {
-    if (!broadcastingSession || liveSubTab !== "slides") return;
-    const slides = broadcastingSession.content.split(/^---$/m).map((s: string) => s.trim()).filter(Boolean);
-    const safeSlide = Math.min(broadcastingSession.currentSlide ?? 0, slides.length - 1);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); handleSlideChange(Math.min(slides.length - 1, safeSlide + 1)); }
-      if (e.key === "ArrowLeft"  || e.key === "ArrowUp")   { e.preventDefault(); handleSlideChange(Math.max(0, safeSlide - 1)); }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [broadcastingSession, liveSubTab]);
 
   const showSuccess = (msg: string) => {
     setSuccessMsg(msg);
@@ -295,10 +221,8 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
         if (data.length > 0) {
           setNoteCourseId(data[0].id);
           setQuizCourseId(data[0].id);
-          setLiveCourseId(data[0].id);
           setExamCourseId(data[0].id);
           setAssignmentCourseId(data[0].id);
-          checkActiveLectureOnLoad(data);
         }
       }
     } catch (err) {
@@ -525,30 +449,6 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
       const res = await fetch(`/api/assignments/${assignmentId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) { showSuccess("Assignment deleted."); setSelectedAssignment(null); setAssignmentSubmissions([]); fetchAssignments(); }
     } catch { showError("Failed to delete assignment"); }
-  };
-
-  const checkActiveLectureOnLoad = async (allCourses: Course[]) => {
-    for (const c of allCourses) {
-      if (c.lecturerId !== user.id) continue;
-      try {
-        const res = await fetch(`/api/lectures/active/${c.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.isActive) {
-            setBroadcastingSession(data);
-            setLiveCourseId(c.id);
-            setLiveTopic(data.topic);
-            setLiveContent(data.content);
-            setLiveChats(data.chats || []);
-            break;
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-    }
   };
 
   const fetchGradebook = async () => {
@@ -898,35 +798,6 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
     finally { setIsLoadingAnalytics(false); }
   };
 
-  const fetchAnnouncements = async () => {
-    try {
-      const res = await fetch("/api/announcements", { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setAnnouncements(await res.json());
-    } catch {}
-  };
-
-  const handlePostAnnouncement = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!annTitle.trim() || !annBody.trim()) return;
-    setIsPostingAnn(true);
-    try {
-      const res = await fetch("/api/announcements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ title: annTitle, body: annBody, courseId: annCourseId || undefined }),
-      });
-      if (res.ok) { showSuccess("Announcement posted."); setAnnTitle(""); setAnnBody(""); setAnnCourseId(""); fetchAnnouncements(); }
-      else { const d = await res.json(); showError(d.error || "Failed to post"); }
-    } catch (e: any) { showError(e.message); }
-    finally { setIsPostingAnn(false); }
-  };
-
-  const handleDeleteAnnouncement = async (id: string) => {
-    if (!confirm("Delete this announcement?")) return;
-    const res = await fetch(`/api/announcements/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) fetchAnnouncements();
-  };
-
   const handleDeployQuizSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quizCourseId || !quizTitle || !quizDuration) {
@@ -1168,217 +1039,6 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
     }
   };
 
-  const handleLaunchLiveLecture = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!liveCourseId || !liveTopic.trim() || !liveContent.trim()) {
-      showError("Fill out all required live lecture fields");
-      return;
-    }
-    try {
-      const res = await fetch("/api/lectures", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ courseId: liveCourseId, topic: liveTopic, content: liveContent }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setBroadcastingSession(data);
-        showSuccess("Live Broadcast launched successfully. Virtual slides are active!");
-      } else {
-        const d = await res.json();
-        showError(d.error || "Failed to launch lecture stream");
-      }
-    } catch (err: any) {
-      showError(err.message);
-    }
-  };
-
-  const handlePreLaunchPptx = async (file: File) => {
-    setPreLaunchPptxFile(file);
-    setIsParsingPptx(true);
-    setParsedSlideCount(null);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/lectures/parse-pptx", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setLiveContent(data.content);
-        setParsedSlideCount(data.slideCount);
-        showSuccess(`Extracted ${data.slideCount} slides from ${file.name}`);
-      } else {
-        showError(data.error || "Failed to parse PPT file");
-        setPreLaunchPptxFile(null);
-      }
-    } catch (err: any) {
-      showError(err.message);
-      setPreLaunchPptxFile(null);
-    } finally {
-      setIsParsingPptx(false);
-    }
-  };
-
-  const handleUpdateLiveLecture = async () => {
-    if (!broadcastingSession || !liveContent.trim()) return;
-    try {
-      const res = await fetch(`/api/lectures/${broadcastingSession.id}/content`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ content: liveContent }),
-      });
-      if (res.ok) {
-        setBroadcastingSession((prev: any) => prev ? { ...prev, topic: liveTopic, content: liveContent } : prev);
-        showSuccess("Live board synced to all connected student panels!");
-      } else {
-        showError("Failed to sync broadcast content");
-      }
-    } catch (err: any) {
-      showError(err.message);
-    }
-  };
-
-  const handleEndLiveLecture = async () => {
-    if (!broadcastingSession) return;
-    try {
-      const res = await fetch(`/api/lectures/${broadcastingSession.id}/end`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        setBroadcastingSession(null);
-        setLiveChats([]);
-        setLiveTopic("");
-        setLiveContent("");
-        showSuccess("Live Virtual Class ended. Broadcast disconnected.");
-      } else {
-        showError("Failed to disconnect broadcast session");
-      }
-    } catch (err: any) {
-      showError(err.message);
-    }
-  };
-
-  const handleSendLecturerChat = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!lecturerChatMessage.trim() || !broadcastingSession) return;
-    const msg = lecturerChatMessage.trim();
-    setLecturerChatMessage("");
-    setIsSendingChat(true);
-    try {
-      const res = await fetch(`/api/lectures/${broadcastingSession.id}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: msg }),
-      });
-      if (res.ok) {
-        const chat = await res.json();
-        setLiveChats((prev) => [...prev, chat]);
-      }
-    } catch (err) {
-      console.error("Lecturer chat failed:", err);
-    } finally {
-      setIsSendingChat(false);
-    }
-  };
-
-  const handleSlideChange = async (idx: number) => {
-    if (!broadcastingSession) return;
-    await fetch(`/api/lectures/${broadcastingSession.id}/slide`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ slide: idx }),
-    });
-    setBroadcastingSession((prev: any) => prev ? { ...prev, currentSlide: idx } : prev);
-  };
-
-  const handleLaunchPoll = async () => {
-    if (!broadcastingSession || !pollQuestion.trim()) { showError("Enter a poll question first"); return; }
-    const filtered = pollOptions.filter(o => o.trim());
-    if (filtered.length < 2) { showError("At least 2 options required"); return; }
-    const res = await fetch(`/api/lectures/${broadcastingSession.id}/poll`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ question: pollQuestion, options: filtered }),
-    });
-    if (res.ok) { showSuccess("Poll launched to students!"); setPollQuestion(""); }
-    else { const d = await res.json(); showError(d.error || "Failed to launch poll"); }
-  };
-
-  const handleClosePoll = async () => {
-    if (!broadcastingSession) return;
-    await fetch(`/api/lectures/${broadcastingSession.id}/poll`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    showSuccess("Poll closed.");
-  };
-
-  const handleDismissHandRaise = async (raiseId: string) => {
-    if (!broadcastingSession) return;
-    await fetch(`/api/lectures/${broadcastingSession.id}/hand-raises/${raiseId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    setBroadcastingSession((prev: any) => prev ? { ...prev, handRaises: (prev.handRaises || []).filter((h: any) => h.id !== raiseId) } : prev);
-  };
-
-  const handleAllowToSpeak = async (raiseId: string, studentName: string) => {
-    if (!broadcastingSession) return;
-    await fetch(`/api/lectures/${broadcastingSession.id}/hand-raises/${raiseId}/allow`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-    setBroadcastingSession((prev: any) => prev ? {
-      ...prev,
-      handRaises: (prev.handRaises || []).map((h: any) => h.id === raiseId ? { ...h, allowedToSpeak: true } : h),
-    } : prev);
-    audioRoomRef.current?.grantMic(studentName);
-  };
-
-  const handleMuteStudent = async (raiseId: string, studentName: string) => {
-    if (!broadcastingSession) return;
-    await fetch(`/api/lectures/${broadcastingSession.id}/hand-raises/${raiseId}/mute`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-    setBroadcastingSession((prev: any) => prev ? {
-      ...prev,
-      handRaises: (prev.handRaises || []).map((h: any) => h.id === raiseId ? { ...h, allowedToSpeak: false } : h),
-    } : prev);
-    audioRoomRef.current?.revokeMic(studentName);
-  };
-
-  const handleMuteAll = () => {
-    audioRoomRef.current?.muteAll();
-  };
-
-  const handleAttachFile = async () => {
-    if (!broadcastingSession || !attachLiveFile) return;
-    const fd = new FormData(); fd.append("file", attachLiveFile);
-    const res = await fetch(`/api/lectures/${broadcastingSession.id}/attachment`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
-    if (res.ok) { showSuccess(`"${attachLiveFile.name}" attached. Students can now download it.`); setAttachLiveFile(null); }
-    else showError("Failed to attach file");
-  };
-
-  const handleUploadPptx = async () => {
-    if (!broadcastingSession || !pptxFile) return;
-    setIsUploadingPptx(true);
-    const fd = new FormData(); fd.append("file", pptxFile);
-    const res = await fetch(`/api/lectures/${broadcastingSession.id}/pptx`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
-    if (res.ok) {
-      const data = await res.json();
-      setBroadcastingSession((prev: any) => prev ? { ...prev, content: data.content, currentSlide: 0 } : prev);
-      showSuccess(`PowerPoint loaded: ${data.slideCount} slides ready`);
-      setPptxFile(null);
-    } else {
-      const d = await res.json().catch(() => ({}));
-      showError(d.error || "Failed to parse PPTX");
-    }
-    setIsUploadingPptx(false);
-  };
-
-  const handleSummarize = async () => {
-    if (!broadcastingSession) return;
-    setIsSummarizing(true);
-    const res = await fetch(`/api/lectures/${broadcastingSession.id}/summarize`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-    const d = await res.json();
-    if (res.ok) { setSessionSummary(d.summary); showSuccess("AI summary generated!"); }
-    else showError(d.error || "Failed to generate summary");
-    setIsSummarizing(false);
-  };
-
   const filteredAttempts = attempts.filter((att) => {
     if (filterCourseId && att.courseId !== filterCourseId) return false;
     if (filterQuizId && att.assessmentId !== filterQuizId) return false;
@@ -1390,7 +1050,7 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
   });
 
   /* ─── macOS nav button ─── */
-  const navBtn = (id: string, label: string, icon: React.ReactNode, live?: boolean) => {
+  const navBtn = (id: string, label: string, icon: React.ReactNode) => {
     const isActive = activeTab === id;
     return (
       <button
@@ -1407,9 +1067,6 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
       >
         <span className={`flex-shrink-0 ${isActive ? "text-emerald-500" : ""}`}>{icon}</span>
         <span className="hidden sm:inline">{label}</span>
-        {live && broadcastingSession && (
-          <span className="ml-auto h-2 w-2 bg-red-500 rounded-full animate-ping flex-shrink-0 hidden sm:block" />
-        )}
       </button>
     );
   };
@@ -1419,17 +1076,14 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
 
   const sectionTitle: Record<string, string> = {
     gradebook: "Student Gradebook",
-    "live-lecture": "Live Broadcast",
     notes: "Publish Study Notes",
     quizzes: "Deploy MCQ Quiz",
     exams: "Written Exams (AI)",
     assignments: "Assignments",
     courses: "Course Registry",
-    announcements: "Announcements",
     departments: "Departments",
     analytics: "Analytics",
     calendar: "Calendar",
-    discussions: "Discussions",
     "school-admin": "School Admin",
   };
 
@@ -1543,14 +1197,11 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
           {navBtn("gradebook",    "Gradebook",      <ClipboardList className="h-4 w-4" strokeWidth={1.6} />)}
           {navBtn("analytics",    "Analytics",      <TrendingUp className="h-4 w-4" strokeWidth={1.6} />)}
           {navBtn("calendar",     "Calendar",       <Calendar className="h-4 w-4" strokeWidth={1.6} />)}
-          {navBtn("live-lecture", "Live Lecture",   <Radio className={`h-4 w-4 ${broadcastingSession ? "text-red-500 animate-pulse" : ""}`} strokeWidth={1.6} />, true)}
           {navBtn("notes",        "Publish Notes",  <PlusCircle className="h-4 w-4" strokeWidth={1.6} />)}
           {navBtn("quizzes",      "Deploy Quiz",    <Award className="h-4 w-4" strokeWidth={1.6} />)}
           {navBtn("exams",        "Written Exams",  <FileText className="h-4 w-4" strokeWidth={1.6} />)}
           {navBtn("assignments",  "Assignments",    <Pencil className="h-4 w-4" strokeWidth={1.6} />)}
           {navBtn("courses",       "Courses",        <BookOpen className="h-4 w-4" strokeWidth={1.6} />)}
-          {navBtn("discussions",   "Discussions",    <MessageSquare className="h-4 w-4" strokeWidth={1.6} />)}
-          {navBtn("announcements","Announcements",  <Megaphone className="h-4 w-4" strokeWidth={1.6} />)}
           {navBtn("departments",  "Departments",    <Users className="h-4 w-4" strokeWidth={1.6} />)}
           {user.isAdmin && navBtn("school-admin", "School Admin", <Building2 className="h-4 w-4" strokeWidth={1.6} />)}
 
@@ -1625,12 +1276,6 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
             </h1>
           </div>
           <div className="flex items-center gap-1">
-            {broadcastingSession && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 dark:bg-red-500/15 text-[11px] font-semibold text-red-600 dark:text-red-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-                Live
-              </span>
-            )}
             {/* Notification bell — always visible */}
             <NotificationBell token={token} />
             {/* Mobile-only: avatar + theme + logout */}
@@ -1892,409 +1537,6 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
               </div>
             </motion.div>
           )}
-
-          {/* ── 2. LIVE LECTURE ── */}
-          {activeTab === "live-lecture" && (
-            <motion.div id="live-lecture-panel" className="apple-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 280, damping: 26 }}>
-              <div className="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06]">
-                <h2 className="text-[14px] font-semibold text-[#1d1d1f] dark:text-white/90 flex items-center gap-2">
-                  <Radio className="h-4 w-4 text-red-500 animate-pulse" />
-                  Live Broadcasting Station
-                </h2>
-                <p className="apple-subtitle">Audio/video, slides, polls, attendance: all in one live session.</p>
-              </div>
-              <div className="p-5 space-y-4">
-
-                {!broadcastingSession ? (
-                  <form onSubmit={handleLaunchLiveLecture} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className={lbl}>Target Course</label>
-                        <select value={liveCourseId} onChange={(e) => setLiveCourseId(e.target.value)} className="form-input">
-                          {courses.map((c) => <option key={c.id} value={c.id}>{c.code} / {c.title}</option>)}
-                        </select>
-                        {audienceBadge(liveCourseId)}
-                      </div>
-                      <div>
-                        <label className={lbl}>Lecture Topic</label>
-                        <input type="text" required value={liveTopic} onChange={(e) => setLiveTopic(e.target.value)} placeholder="e.g. Lecture 4: Relational Algebra" className="form-input" />
-                      </div>
-                    </div>
-
-                    {/* PPT Upload */}
-                    <div>
-                      <label className={lbl}>Upload PowerPoint Slides (.pptx)</label>
-                      <label className={`flex items-center gap-3 cursor-pointer border-2 border-dashed rounded-[12px] px-4 py-5 transition
-                        ${preLaunchPptxFile ? "border-emerald-400 bg-emerald-50/60 dark:bg-emerald-950/20" : "border-black/[0.10] dark:border-white/[0.10] hover:border-emerald-300 dark:hover:border-emerald-700"}`}>
-                        <input type="file" accept=".pptx" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handlePreLaunchPptx(f); e.target.value = ""; }} />
-                        {isParsingPptx ? (
-                          <><Loader2 className="h-5 w-5 animate-spin text-emerald-500 flex-shrink-0" /><span className="text-[13px] text-[#6e6e73] dark:text-white/50">Extracting slides…</span></>
-                        ) : preLaunchPptxFile && parsedSlideCount ? (
-                          <>
-                            <div className="flex items-center justify-center w-9 h-9 rounded-[10px] bg-emerald-100 dark:bg-emerald-900/30 flex-shrink-0">
-                              <Layers className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[13px] font-semibold text-emerald-700 dark:text-emerald-400 truncate">{preLaunchPptxFile.name}</p>
-                              <p className="text-[11.5px] text-emerald-600/70 dark:text-emerald-400/60">{parsedSlideCount} slides extracted — tap to replace</p>
-                            </div>
-                            <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex items-center justify-center w-9 h-9 rounded-[10px] bg-black/[0.04] dark:bg-white/[0.05] flex-shrink-0">
-                              <Upload className="h-4 w-4 text-[#6e6e73] dark:text-white/40" />
-                            </div>
-                            <div>
-                              <p className="text-[13px] font-semibold text-[#3a3a3c] dark:text-white/70">Choose a .pptx file</p>
-                              <p className="text-[11.5px] text-[#6e6e73] dark:text-white/40">AI extracts each slide into a live board — or type content below</p>
-                            </div>
-                          </>
-                        )}
-                      </label>
-                    </div>
-
-                    {/* Manual content — shown collapsed when PPT loaded, expanded when typing manually */}
-                    <div>
-                      <label className={lbl}>
-                        {parsedSlideCount ? "Extracted Slide Content (editable)" : "Or Type Slides Manually (separate with ---)"}
-                      </label>
-                      <textarea
-                        required
-                        rows={parsedSlideCount ? 5 : 7}
-                        value={liveContent}
-                        onChange={(e) => setLiveContent(e.target.value)}
-                        placeholder={"# Slide 1\nYour first slide content here\n\n---\n\n# Slide 2\nSecond slide…"}
-                        className="form-input font-mono text-[12px]"
-                      />
-                      {parsedSlideCount && (
-                        <p className="text-[11px] text-[#6e6e73] dark:text-white/40 mt-1">You can edit the extracted content before launching.</p>
-                      )}
-                    </div>
-
-                    <button type="submit" className="btn-gradient flex items-center gap-2">
-                      <Radio className="h-4 w-4" /> Launch Broadcast
-                    </button>
-                  </form>
-                ) : (() => {
-                  const slides = broadcastingSession.content.split(/^---$/m).map((s: string) => s.trim()).filter(Boolean);
-                  const currentSlide = broadcastingSession.currentSlide ?? 0;
-                  const safeSlide = Math.min(currentSlide, slides.length - 1);
-                  const handRaises: any[] = broadcastingSession.handRaises ?? [];
-                  const activePoll: any = (broadcastingSession.polls ?? [])[0] ?? null;
-                  const attendance: any[] = broadcastingSession.attendance ?? [];
-
-                  return (
-                    <div className="space-y-4">
-                      {/* Live banner */}
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 rounded-[12px] p-3.5">
-                        <div className="flex items-center gap-3">
-                          <span className="flex h-2.5 w-2.5"><span className="animate-ping absolute h-2.5 w-2.5 rounded-full bg-red-400 opacity-75" /><span className="relative h-2.5 w-2.5 rounded-full bg-red-500" /></span>
-                          <div>
-                            <span className="text-[11px] font-mono font-bold text-red-700 dark:text-red-400 uppercase tracking-widest block">Live</span>
-                            <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/85">{broadcastingSession.topic}</p>
-                          </div>
-                          {handRaises.length > 0 && (
-                            <span className="ml-2 flex items-center gap-1 bg-amber-100 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/30 text-amber-700 dark:text-amber-400 text-[11px] font-bold px-2 py-0.5 rounded-full animate-pulse">
-                              <ThumbsUp className="h-3 w-3" /> {handRaises.length}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <button onClick={handleSummarize} disabled={isSummarizing}
-                            className="px-3 py-1.5 text-[11px] font-semibold border border-black/[0.09] dark:border-white/[0.10] rounded-[8px] hover:border-emerald-300 text-[#3a3a3c] dark:text-white/60 transition-colors disabled:opacity-50">
-                            {isSummarizing ? "Summarizing…" : "AI Summary"}
-                          </button>
-                          <button onClick={handleEndLiveLecture}
-                            className="px-4 py-1.5 bg-[#1d1d1f] dark:bg-white/[0.10] hover:bg-red-700 dark:hover:bg-red-700 text-white rounded-[10px] text-[12px] font-semibold transition flex-shrink-0">
-                            End Broadcast
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* AI Summary */}
-                      {sessionSummary && (
-                        <div className="bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-[12px] p-4">
-                          <p className={lbl + " text-emerald-700 dark:text-emerald-400"}>AI Session Summary</p>
-                          <p className="text-[12.5px] text-[#3a3a3c] dark:text-white/70 leading-relaxed whitespace-pre-line">{sessionSummary}</p>
-                        </div>
-                      )}
-
-                      {/* Sub-tabs */}
-                      <div className="flex gap-1 bg-black/[0.04] dark:bg-white/[0.04] rounded-[12px] p-1 border border-black/[0.06] dark:border-white/[0.05] overflow-x-auto">
-                        {([
-                          { id: "audio",      icon: Mic,           label: "Audio/Video" },
-                          { id: "slides",     icon: Layers,        label: `Slides${slides.length > 1 ? ` (${safeSlide + 1}/${slides.length})` : ""}` },
-                          { id: "poll",       icon: BarChart2,     label: `Poll${activePoll ? " •" : ""}` },
-                          { id: "attendance", icon: Users,         label: `Attendance (${attendance.length})` },
-                          { id: "chat",       icon: MessageSquare, label: `Chat (${liveChats.length})` },
-                        ] as { id: "audio" | "slides" | "poll" | "attendance" | "chat"; icon: React.ElementType; label: string }[]).map(tab => (
-                          <button key={tab.id} onClick={() => setLiveSubTab(tab.id)}
-                            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-[10px] transition-all duration-150 ${liveSubTab === tab.id ? "bg-[#ffffff] dark:bg-white/[0.10] text-[#1d1d1f] dark:text-white/90 shadow-sm border border-black/[0.07] dark:border-white/[0.08]" : "text-[#6e6e73] dark:text-white/50 hover:text-[#1d1d1f] dark:hover:text-white/75"}`}>
-                            <tab.icon className="h-3.5 w-3.5 flex-shrink-0" />
-                            {tab.label}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* LiveAudioRoom — always mounted so audio stays alive when switching tabs */}
-                      <div style={{ display: liveSubTab === "audio" ? "block" : "none" }}>
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <p className="text-[12px] font-semibold text-[#6e6e73] dark:text-white/40">Live audio room — you are the host</p>
-                            <button onClick={handleMuteAll}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-[10px] border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition cursor-pointer">
-                              <Mic className="h-3.5 w-3.5" /> Mute All Students
-                            </button>
-                          </div>
-                          <LiveAudioRoom
-                            ref={audioRoomRef}
-                            roomId={broadcastingSession.id}
-                            displayName={user.name}
-                            role="lecturer"
-                          />
-                          <div className="bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[12px] p-4 space-y-3">
-                            <p className={lbl}>Share a File with Students</p>
-                            <div className="flex items-center gap-3">
-                              <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-black/[0.12] dark:border-white/[0.15] rounded-[10px] cursor-pointer hover:border-emerald-400 transition-colors text-[12px] text-[#6e6e73] dark:text-white/50 flex-1">
-                                <Upload className="h-4 w-4 shrink-0" />
-                                {attachLiveFile ? attachLiveFile.name : "Choose file to share (PDF, DOCX, etc.)"}
-                                <input type="file" className="hidden" onChange={e => setAttachLiveFile(e.target.files?.[0] ?? null)} />
-                              </label>
-                              <button onClick={handleAttachFile} disabled={!attachLiveFile}
-                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[12px] font-semibold rounded-[10px] transition disabled:opacity-40">
-                                Share
-                              </button>
-                            </div>
-                            {broadcastingSession.attachmentName && (
-                              <p className="text-[12px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                                <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> Shared: {broadcastingSession.attachmentName}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Slides */}
-                      {liveSubTab === "slides" && (
-                        <div className="space-y-4">
-                          {/* Hand raise alerts — shown directly in slides view */}
-                          {handRaises.length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-[11px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                                <ThumbsUp className="h-3.5 w-3.5" /> {handRaises.length} student{handRaises.length !== 1 ? "s" : ""} raised hand
-                              </p>
-                              {handRaises.map((h: any) => (
-                                <div key={h.id} className={`flex items-center justify-between gap-3 px-3.5 py-2.5 border rounded-[10px] ${h.allowedToSpeak ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/30" : "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/30"}`}>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[15px]">{h.allowedToSpeak ? "🎤" : "✋"}</span>
-                                    <div>
-                                      <p className="text-[12.5px] font-semibold text-[#1d1d1f] dark:text-white/90">{h.studentName}</p>
-                                      <p className="text-[10.5px] font-mono text-[#6e6e73] dark:text-white/40">
-                                        {h.allowedToSpeak ? "Speaking allowed" : new Date(h.raisedAt).toLocaleTimeString()}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                                    {!h.allowedToSpeak ? (
-                                      <button onClick={() => handleAllowToSpeak(h.id, h.studentName)}
-                                        className="px-3 py-1 text-[11px] font-semibold border border-emerald-400 dark:border-emerald-600 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 rounded-[8px] transition cursor-pointer">
-                                        Allow 🎤
-                                      </button>
-                                    ) : (
-                                      <button onClick={() => handleMuteStudent(h.id, h.studentName)}
-                                        className="px-3 py-1 text-[11px] font-semibold border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-[8px] transition cursor-pointer">
-                                        Mute 🔇
-                                      </button>
-                                    )}
-                                    <button onClick={() => handleDismissHandRaise(h.id)}
-                                      className="px-3 py-1 text-[11px] font-semibold border border-black/[0.09] dark:border-white/[0.10] text-[#6e6e73] dark:text-white/50 hover:bg-black/[0.05] dark:hover:bg-white/[0.05] rounded-[8px] transition cursor-pointer">
-                                      Lower
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {slides.length > 0 && (
-                            <div className="space-y-3">
-                              <SlideView
-                                content={slides[safeSlide]}
-                                slideNumber={safeSlide + 1}
-                                totalSlides={slides.length}
-                                topic={broadcastingSession.topic}
-                                courseCode={courses.find((c: any) => c.id === broadcastingSession.courseId)?.code}
-                                canNavigate
-                                onPrev={() => handleSlideChange(Math.max(0, safeSlide - 1))}
-                                onNext={() => handleSlideChange(Math.min(slides.length - 1, safeSlide + 1))}
-                              />
-                              <div className="flex items-center justify-between gap-3">
-                                <button onClick={() => handleSlideChange(Math.max(0, safeSlide - 1))} disabled={safeSlide === 0}
-                                  className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-semibold bg-black/[0.06] dark:bg-white/[0.08] hover:bg-black/[0.12] dark:hover:bg-white/[0.14] text-[#3a3a3c] dark:text-white/70 rounded-[10px] disabled:opacity-30 transition cursor-pointer">
-                                  <ChevronLeft className="h-4 w-4" /> Previous
-                                </button>
-                                <span className="text-[11px] font-mono text-[#6e6e73] dark:text-white/40 select-none">← → or hover slide for fullscreen</span>
-                                <button onClick={() => handleSlideChange(Math.min(slides.length - 1, safeSlide + 1))} disabled={safeSlide === slides.length - 1}
-                                  className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-[10px] disabled:opacity-30 transition cursor-pointer">
-                                  Next <ChevronRight className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                          <div className="bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[12px] p-4 space-y-3">
-                            <p className={lbl}>Upload PowerPoint (.pptx)</p>
-                            <div className="flex items-center gap-3">
-                              <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-black/[0.12] dark:border-white/[0.15] rounded-[10px] cursor-pointer hover:border-emerald-400 transition-colors text-[12px] text-[#6e6e73] dark:text-white/50 flex-1 min-w-0">
-                                <Layers className="h-4 w-4 shrink-0" />
-                                <span className="truncate">{pptxFile ? pptxFile.name : "Choose .pptx file"}</span>
-                                <input type="file" accept=".pptx" className="hidden" onChange={e => setPptxFile(e.target.files?.[0] ?? null)} />
-                              </label>
-                              <button onClick={handleUploadPptx} disabled={!pptxFile || isUploadingPptx}
-                                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[12px] font-semibold rounded-[10px] transition disabled:opacity-40 flex-shrink-0">
-                                {isUploadingPptx ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Parsing…</> : "Load Slides"}
-                              </button>
-                            </div>
-                            <p className="text-[11px] text-[#6e6e73] dark:text-white/40">Slides are extracted from the PPTX and displayed in order during the live class.</p>
-                          </div>
-                          <div className="bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[12px] p-4 space-y-3">
-                            <p className={lbl}>Update Content Manually</p>
-                            <input type="text" value={liveTopic} onChange={e => setLiveTopic(e.target.value)} placeholder="Topic" className="form-input" />
-                            <textarea rows={8} value={liveContent} onChange={e => setLiveContent(e.target.value)} className="form-input" />
-                            <button onClick={handleUpdateLiveLecture} className="btn-gradient flex items-center gap-2">
-                              <Save className="h-4 w-4" /> Sync to Students
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Poll */}
-                      {liveSubTab === "poll" && (
-                        <div className="space-y-4">
-                          {activePoll ? (
-                            <div className="bg-amber-50/60 dark:bg-amber-950/10 border border-amber-100 dark:border-amber-900/30 rounded-[12px] p-4">
-                              <div className="flex items-start justify-between gap-3 mb-3">
-                                <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/90">{activePoll.question}</p>
-                                <button onClick={handleClosePoll} className="text-[11px] font-semibold text-red-500 border border-red-200 dark:border-red-900/40 px-2.5 py-1 rounded-[8px] hover:bg-red-50 dark:hover:bg-red-950/20 transition">Close Poll</button>
-                              </div>
-                              {(() => {
-                                const opts: string[] = JSON.parse(activePoll.optionsJson);
-                                const responses: any[] = activePoll.responses ?? [];
-                                const total = responses.length;
-                                return (
-                                  <div className="space-y-2">
-                                    {opts.map(opt => {
-                                      const count = responses.filter((r: any) => r.answer === opt).length;
-                                      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-                                      return (
-                                        <div key={opt}>
-                                          <div className="flex justify-between text-[12px] mb-1">
-                                            <span className="font-medium text-[#3a3a3c] dark:text-white/75">{opt}</span>
-                                            <span className="text-[#6e6e73] dark:text-white/40 font-mono">{count} ({pct}%)</span>
-                                          </div>
-                                          <div className="h-2 rounded-full bg-black/[0.07] dark:bg-white/[0.08] overflow-hidden">
-                                            <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${pct}%` }} />
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                    <p className="text-[11px] text-[#6e6e73] dark:text-white/40 mt-2">{total} response{total !== 1 ? "s" : ""}</p>
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          ) : (
-                            <div className="bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.05] rounded-[12px] p-4 space-y-3">
-                              <p className={lbl}>Launch a Quick Poll</p>
-                              <input type="text" value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder="Ask the class a question…" className="form-input" />
-                              <div className="space-y-2">
-                                {pollOptions.map((opt, i) => (
-                                  <input key={i} type="text" value={opt} onChange={e => { const o = [...pollOptions]; o[i] = e.target.value; setPollOptions(o); }} placeholder={`Option ${i + 1}`} className="form-input" />
-                                ))}
-                              </div>
-                              <button onClick={handleLaunchPoll} className="btn-gradient flex items-center gap-2 w-full justify-center">
-                                <BarChart2 className="h-4 w-4" /> Launch Poll
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Attendance */}
-                      {liveSubTab === "attendance" && (
-                        <div className="space-y-3">
-                          <p className={lbl}>Students Present ({attendance.length})</p>
-                          {attendance.length === 0 ? (
-                            <div className="py-10 text-center border border-dashed border-black/[0.10] dark:border-white/[0.10] rounded-[12px]">
-                              <p className="text-[12px] text-[#6e6e73] dark:text-white/40">No students have joined yet.</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              {handRaises.length > 0 && (
-                                <div className="mb-3">
-                                  <p className={lbl + " flex items-center gap-1.5 text-amber-600 dark:text-amber-400"}><ThumbsUp className="h-3.5 w-3.5" /> Raised Hands ({handRaises.length})</p>
-                                  <div className="space-y-1.5">
-                                    {handRaises.map((h: any) => (
-                                      <div key={h.id} className="flex items-center justify-between p-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 rounded-[10px]">
-                                        <span className="text-[12.5px] font-semibold text-[#1d1d1f] dark:text-white/85">{h.studentName}</span>
-                                        <button onClick={() => handleDismissHandRaise(h.id)} className="text-[11px] font-semibold text-[#6e6e73] dark:text-white/50 hover:text-[#1d1d1f] dark:hover:text-white/80 transition">Dismiss</button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {attendance.map((a: any) => (
-                                <div key={a.studentId} className="flex items-center justify-between p-3 border border-black/[0.07] dark:border-white/[0.06] rounded-[10px]">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="h-7 w-7 rounded-full bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center">
-                                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">{a.studentName?.[0] ?? "?"}</span>
-                                    </div>
-                                    <span className="text-[12.5px] font-semibold text-[#1d1d1f] dark:text-white/85">{a.studentName}</span>
-                                  </div>
-                                  <span className="text-[11px] text-[#6e6e73] dark:text-white/40 font-mono">{new Date(a.joinedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Chat */}
-                      {liveSubTab === "chat" && (
-                        <div className="border border-black/[0.07] dark:border-white/[0.07] rounded-[12px] overflow-hidden flex flex-col h-[420px]">
-                          <div className="flex-1 p-3 overflow-y-auto space-y-3 bg-black/[0.01] dark:bg-white/[0.02]">
-                            {liveChats.length === 0 ? (
-                              <div className="h-full flex items-center justify-center text-[#6e6e73] dark:text-white/35 text-[11px] font-medium">Waiting for responses…</div>
-                            ) : liveChats.map((chat) => {
-                              const isMe = chat.senderRole === "lecturer";
-                              return (
-                                <div key={chat.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
-                                  <UserAvatar userId={chat.senderId} role={isMe ? "lecturer" : "student"} size={26} initials={chat.senderName} className="shrink-0" />
-                                  <div className={`max-w-[75%] flex flex-col gap-0.5 ${isMe ? "items-end" : "items-start"}`}>
-                                    <span className={`text-[11px] font-bold font-mono uppercase tracking-wide ${isMe ? "text-amber-600 dark:text-amber-500" : "text-[#6e6e73] dark:text-white/40"}`}>{chat.senderName}</span>
-                                    <div className={`px-3 py-2 rounded-2xl text-[12px] break-words ${isMe ? "bg-amber-100 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/30 rounded-br-md text-[#1d1d1f] dark:text-white/85" : "bg-[#f0f0f0] dark:bg-white/[0.07] rounded-bl-md text-[#1d1d1f] dark:text-white/80"}`}>{chat.message}</div>
-                                    <span className="text-[8.5px] text-[#6e6e73] dark:text-white/30 font-mono">{new Date(chat.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            <div ref={chatEndRef} />
-                          </div>
-                          <form onSubmit={handleSendLecturerChat} className="p-2.5 border-t border-black/[0.06] dark:border-white/[0.06] flex gap-2 bg-[#ffffff] dark:bg-[#1c1c1e]">
-                            <input type="text" required value={lecturerChatMessage} onChange={e => setLecturerChatMessage(e.target.value)} placeholder="Reply to class…"
-                              className="flex-1 px-3 py-2.5 bg-black/[0.04] dark:bg-white/[0.07] border border-black/[0.09] dark:border-white/[0.10] rounded-[10px] text-[12.5px] text-[#1d1d1f] dark:text-white/90 placeholder-[#6e6e73] dark:placeholder-white/30 outline-none focus:border-emerald-500/60 transition" />
-                            <button type="submit" disabled={isSendingChat} className="flex items-center justify-center w-9 h-9 rounded-[10px] bg-amber-600 hover:bg-amber-500 disabled:opacity-50 transition flex-shrink-0">
-                              <Send className="h-3.5 w-3.5 text-white" />
-                            </button>
-                          </form>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            </motion.div>
-          )}
-
           {/* ── 3. PUBLISH NOTES ── */}
           {activeTab === "notes" && (
             <div className="space-y-4">
@@ -3106,64 +2348,6 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
           {/* ── CALENDAR TAB ── */}
           {activeTab === "calendar" && <CalendarView token={token} />}
 
-          {/* ── DISCUSSIONS TAB ── */}
-          {activeTab === "discussions" && (
-            <DiscussionBoard token={token} userId={user.id} userRole="lecturer" userName={user.name} courses={courses.map((c: any) => ({ id: c.id, code: c.code, title: c.title }))} />
-          )}
-
-          {/* ── ANNOUNCEMENTS TAB ── */}
-          {activeTab === "announcements" && (
-            <motion.div className="space-y-5" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 280, damping: 26 }}>
-              <div className="apple-card">
-                <div className="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06]">
-                  <h2 className="apple-title flex items-center gap-2"><Megaphone className="h-4 w-4 text-emerald-500" /> Post Announcement</h2>
-                  <p className="apple-subtitle">Notify all students instantly. A push notification is sent when you post.</p>
-                </div>
-                <form onSubmit={handlePostAnnouncement} className="p-6 space-y-4">
-                  <div><label className={lbl}>Title</label><input required value={annTitle} onChange={e => setAnnTitle(e.target.value)} placeholder="e.g. Exam rescheduled to Friday" className="form-input" /></div>
-                  <div><label className={lbl}>Message</label><textarea required rows={3} value={annBody} onChange={e => setAnnBody(e.target.value)} placeholder="Write your announcement here…" className="form-input resize-none" /></div>
-                  <div><label className={lbl}>Tag Course (optional)</label>
-                    <select value={annCourseId} onChange={e => setAnnCourseId(e.target.value)} className="form-input">
-                      <option value="">All Students</option>
-                      {courses.filter(c => c.lecturerId === user.id).map(c => <option key={c.id} value={c.id}>{c.code} — {c.title}</option>)}
-                    </select>
-                  </div>
-                  <button type="submit" disabled={isPostingAnn} className="btn-gradient flex items-center gap-2 disabled:opacity-50">
-                    {isPostingAnn ? <><Loader2 className="h-4 w-4 animate-spin" /> Posting…</> : <><Send className="h-4 w-4" /> Post Announcement</>}
-                  </button>
-                </form>
-              </div>
-              <div className="apple-card">
-                <div className="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06]">
-                  <h2 className="apple-title">Posted Announcements</h2>
-                </div>
-                <div className="p-5">
-                  {announcements.length === 0 ? (
-                    <div className="apple-empty-state"><div className="apple-empty-state__icon"><Megaphone className="h-6 w-6 text-[#8e8e93] dark:text-white/30" /></div><p className="apple-empty-state__title">No announcements yet</p></div>
-                  ) : (
-                    <div className="space-y-3">
-                      {announcements.map(ann => (
-                        <div key={ann.id} className="flex items-start justify-between gap-3 p-4 border border-black/[0.07] dark:border-white/[0.06] rounded-[12px]">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/90">{ann.title}</p>
-                              {ann.course && <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase">{ann.course.code}</span>}
-                            </div>
-                            <p className="text-[12px] text-[#6e6e73] dark:text-white/50 leading-relaxed">{ann.body}</p>
-                            <p className="text-[10.5px] font-mono text-[#6e6e73] dark:text-white/30 mt-1">{new Date(ann.createdAt).toLocaleString()}</p>
-                          </div>
-                          {ann.lecturerId === user.id && (
-                            <button onClick={() => handleDeleteAnnouncement(ann.id)} className="flex-shrink-0 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-[8px] transition cursor-pointer"><Trash2 className="h-3.5 w-3.5" /></button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
           {/* ── 5. COURSE REGISTRY ── */}
           {activeTab === "courses" && (
             <motion.div id="courses-panel" className="apple-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 280, damping: 26 }}>
@@ -3236,8 +2420,8 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                             <span className="block font-mono text-[12px] font-bold uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">{c.code}</span>
                             <span className="block text-[12.5px] font-semibold text-[#1d1d1f] dark:text-white/85 leading-tight mt-0.5 truncate">{c.title}</span>
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              {c.department
-                                ? <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 border border-emerald-100 dark:border-emerald-900/30 rounded-full">{c.department.name}</span>
+                              {(c as any).department
+                                ? <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 border border-emerald-100 dark:border-emerald-900/30 rounded-full">{(c as any).department.name}</span>
                                 : <span className="text-[10px] font-bold bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 border border-blue-100 dark:border-blue-900/30 rounded-full">All Depts</span>
                               }
                               {(c as any).targetYear
@@ -4166,18 +3350,13 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 px-5 pb-7 pt-2" aria-label="Main navigation">
         <div className="apple-bottom-dock flex items-center justify-around h-[60px] px-3">
           {([
-            { id: "gradebook",    label: "Grades"      },
-            { id: "live-lecture", label: "Live"        },
-            { id: "quizzes",      label: "Quizzes"     },
-            { id: "exams",        label: "Exams"       },
-            { id: "assignments",  label: "Tasks"       },
+            { id: "gradebook",   label: "Grades",   Icon: ClipboardList },
+            { id: "quizzes",     label: "Quizzes",  Icon: Award         },
+            { id: "exams",       label: "Exams",    Icon: FileText      },
+            { id: "assignments", label: "Tasks",    Icon: Pencil        },
+            { id: "notes",       label: "Notes",    Icon: PlusCircle    },
           ] as const).map((item) => {
             const isActive = activeTab === item.id;
-            const Icon = item.id === "gradebook" ? ClipboardList
-              : item.id === "live-lecture" ? Radio
-              : item.id === "quizzes" ? Award
-              : item.id === "assignments" ? Pencil
-              : FileText;
             return (
               <button
                 key={item.id}
@@ -4188,8 +3367,8 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                 className="flex flex-col items-center justify-center gap-[5px] min-w-[52px] min-h-[44px] px-1.5 rounded-[14px] transition-all"
                 style={{ transform: isActive ? "scale(1.06)" : "scale(1)", transition: "transform 220ms cubic-bezier(0.34,1.56,0.64,1)" }}
               >
-                <Icon
-                  className={`h-5 w-5 transition-colors ${isActive ? "text-emerald-500" : "text-[#8e8e93]"} ${item.id === "live-lecture" && broadcastingSession ? "text-red-500 animate-pulse" : ""}`}
+                <item.Icon
+                  className={`h-5 w-5 transition-colors ${isActive ? "text-emerald-500" : "text-[#8e8e93]"}`}
                   strokeWidth={isActive ? 2.2 : 1.6}
                 />
                 <span className={`text-[9.5px] font-semibold tracking-[0.01em] transition-colors ${isActive ? "text-emerald-500" : "text-[#8e8e93]"}`}>
@@ -4250,13 +3429,11 @@ export default function LecturerDashboard({ token, user, theme, onToggleTheme, o
                   { id: "gradebook",     label: "Gradebook",      icon: <ClipboardList className="h-4 w-4" strokeWidth={1.6} /> },
                   { id: "analytics",     label: "Analytics",      icon: <TrendingUp className="h-4 w-4" strokeWidth={1.6} /> },
                   { id: "calendar",      label: "Calendar",       icon: <Calendar className="h-4 w-4" strokeWidth={1.6} /> },
-                  { id: "live-lecture",  label: "Live Lecture",   icon: <Radio className={`h-4 w-4 ${broadcastingSession ? "text-red-500 animate-pulse" : ""}`} strokeWidth={1.6} /> },
                   { id: "notes",         label: "Publish Notes",  icon: <PlusCircle className="h-4 w-4" strokeWidth={1.6} /> },
                   { id: "quizzes",       label: "Deploy Quiz",    icon: <Award className="h-4 w-4" strokeWidth={1.6} /> },
                   { id: "exams",         label: "Written Exams",  icon: <FileText className="h-4 w-4" strokeWidth={1.6} /> },
                   { id: "assignments",   label: "Assignments",    icon: <Pencil className="h-4 w-4" strokeWidth={1.6} /> },
                   { id: "courses",       label: "Courses",        icon: <BookOpen className="h-4 w-4" strokeWidth={1.6} /> },
-                  { id: "announcements", label: "Announcements",  icon: <Megaphone className="h-4 w-4" strokeWidth={1.6} /> },
                   { id: "departments",   label: "Departments",    icon: <Users className="h-4 w-4" strokeWidth={1.6} /> },
                 ] as const).map(item => {
                   const isActive = activeTab === item.id;

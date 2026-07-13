@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   Building2, Users, GraduationCap, BookOpen, BarChart2,
   PlusCircle, Pencil, Trash2, ToggleLeft, ToggleRight,
-  LogOut, CheckCircle, AlertTriangle, X, Save, School,
+  LogOut, CheckCircle, AlertTriangle, X, Save, School, CreditCard,
 } from "lucide-react";
 import { School as SchoolType } from "../types";
 
@@ -52,6 +52,11 @@ export default function SuperAdminDashboard({ token, user, onLogout }: SuperAdmi
 
   // Delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Credits top-up
+  const [creditingSchool, setCreditingSchool] = useState<{ id: string; name: string } | null>(null);
+  const [creditAmount, setCreditAmount] = useState("");
+  const [creditLoading, setCreditLoading] = useState(false);
 
   const authHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
@@ -143,6 +148,26 @@ export default function SuperAdminDashboard({ token, user, onLogout }: SuperAdmi
     } catch {
       showError("Network error");
     }
+  };
+
+  const handleAddCredits = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!creditingSchool) return;
+    const amount = parseInt(creditAmount);
+    if (!amount || amount <= 0) { showError("Enter a positive credit amount"); return; }
+    setCreditLoading(true);
+    try {
+      const res = await fetch(`/api/super-admin/schools/${creditingSchool.id}/credits/add`, {
+        method: "POST", headers: authHeaders,
+        body: JSON.stringify({ amount, description: `Admin top-up: +${amount} credits` }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showError(data.error || "Failed to add credits"); return; }
+      showSuccess(`Added ${amount} credits to ${creditingSchool.name}. New balance: ${data.newBalance}`);
+      setCreditingSchool(null); setCreditAmount("");
+      await fetchSchools();
+    } catch { showError("Network error"); }
+    finally { setCreditLoading(false); }
   };
 
   const openEdit = (school: SchoolType) => {
@@ -268,6 +293,7 @@ export default function SuperAdminDashboard({ token, user, onLogout }: SuperAdmi
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Students</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Lecturers</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Courses</th>
+                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Credits</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Status</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Actions</th>
                     </tr>
@@ -286,6 +312,11 @@ export default function SuperAdminDashboard({ token, user, onLogout }: SuperAdmi
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{school._count?.lecturers ?? 0}</td>
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{school._count?.courses ?? 0}</td>
                         <td className="px-4 py-3.5">
+                          <span className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400">
+                            {school.creditBalance ?? 0}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
                             school.isActive
                               ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
@@ -296,6 +327,13 @@ export default function SuperAdminDashboard({ token, user, onLogout }: SuperAdmi
                         </td>
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => { setCreditingSchool({ id: school.id, name: school.name }); setCreditAmount(""); }}
+                              className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                              title="Add Credits"
+                            >
+                              <CreditCard className="h-3.5 w-3.5" />
+                            </button>
                             <button
                               onClick={() => openEdit(school)}
                               className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 hover:text-emerald-600 transition-colors cursor-pointer"
@@ -482,6 +520,46 @@ export default function SuperAdminDashboard({ token, user, onLogout }: SuperAdmi
                 <button type="submit" disabled={editLoading} className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer">
                   <Save className="h-4 w-4" />
                   {editLoading ? "Saving…" : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Credits Top-Up Modal */}
+      {creditingSchool && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)" }}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 w-full max-w-sm p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-slate-800 dark:text-white">Add Exam Credits</h3>
+                <p className="text-[12px] text-slate-400 mt-0.5">{creditingSchool.name}</p>
+              </div>
+              <button onClick={() => setCreditingSchool(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="h-5 w-5" /></button>
+            </div>
+            <form onSubmit={handleAddCredits} className="space-y-4">
+              <div>
+                <label className={lblCls}>Number of Credits to Add</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={creditAmount}
+                  onChange={e => setCreditAmount(e.target.value)}
+                  placeholder="e.g. 500"
+                  className={inpCls}
+                  autoFocus
+                />
+                <p className="text-[11px] text-slate-400 mt-1.5">Each exam or quiz attempt costs 1 credit.</p>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setCreditingSchool(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                  Cancel
+                </button>
+                <button type="submit" disabled={creditLoading} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer">
+                  <CreditCard className="h-4 w-4" />
+                  {creditLoading ? "Adding…" : "Add Credits"}
                 </button>
               </div>
             </form>

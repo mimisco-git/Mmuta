@@ -555,62 +555,6 @@ DELETE FROM students WHERE reg_number = 'DEMO/2023/00101';
 
   console.log("Created 2 assignments.");
 
-  // ── Discussion Threads ─────────────────────────────────────────────
-  const thread1 = await prisma.discussionThread.create({
-    data: {
-      courseId:   csc201.id,
-      authorId:   students[0].id,
-      authorRole: "student",
-      authorName: students[0].fullName,
-      title: "Difference between `==` and `is` in Python?",
-      body: "I keep getting confused about when to use `==` vs `is`. Can someone explain with an example?",
-    },
-  });
-
-  await prisma.discussionReply.create({
-    data: {
-      threadId:   thread1.id,
-      authorId:   ada.id,
-      authorRole: "lecturer",
-      authorName: ada.name,
-      body: "`==` checks value equality (do two objects have the same value?), while `is` checks identity (are they the exact same object in memory?). Example: `[1,2] == [1,2]` is `True`, but `[1,2] is [1,2]` is `False` because they are two different list objects.",
-    },
-  });
-
-  await prisma.discussionReply.create({
-    data: {
-      threadId:   thread1.id,
-      authorId:   students[1].id,
-      authorRole: "student",
-      authorName: students[1].fullName,
-      body: "Thanks! So we should always use `==` when comparing values and only use `is` for checking against `None` like `if x is None:`?",
-    },
-  });
-
-  const thread2 = await prisma.discussionThread.create({
-    data: {
-      courseId:   csc301.id,
-      authorId:   students[2].id,
-      authorRole: "student",
-      authorName: students[2].fullName,
-      title: "When should I choose a linked list over an array?",
-      body: "Both seem to do the same thing. What is the practical use case for preferring a linked list?",
-      isPinned: true,
-    },
-  });
-
-  await prisma.discussionReply.create({
-    data: {
-      threadId:   thread2.id,
-      authorId:   ada.id,
-      authorRole: "lecturer",
-      authorName: ada.name,
-      body: "Great question! Choose a linked list when: (1) you frequently insert or delete from the beginning or middle — it's O(1) at the head vs O(n) for an array. (2) You don't know the size in advance and want to avoid resizing cost. Choose an array when: you need random access by index (O(1) vs O(n) for lists), or memory locality matters for performance.",
-    },
-  });
-
-  console.log("Created 2 discussion threads with replies.");
-
   // ── Summary ────────────────────────────────────────────────────────
   console.log(`
 Demo seed complete!

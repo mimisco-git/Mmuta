@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 const ResultSlip = lazy(() => import("./ResultSlip"));
 import { BookOpen, Award, LogOut, FileText, ChevronRight, Play, Clock, AlertTriangle, CheckCircle, ShieldAlert, Send, Radio, Filter, Calendar, Sun, Moon, Camera, Upload, Loader2, ThumbsUp, ArrowLeft, Mic, Layers, BarChart2, MessageSquare, Users, X, ClipboardList, Trophy, Megaphone, TrendingUp, Bell, Pencil, ChevronDown, Download, Flame, Zap, Star, WifiOff } from "lucide-react";
-import NotificationBell from "./NotificationBell";
 import CalendarView from "./CalendarView";
-import DiscussionBoard from "./DiscussionBoard";
 import OnboardingTour from "./OnboardingTour";
 import MathText from "./MathText";
 import { Course, LectureNote, Quiz, StudentAttempt, Question } from "../types";
@@ -11,8 +9,6 @@ import MarkdownView from "./MarkdownView";
 import UserAvatar from "./UserAvatar";
 import AvatarModal from "./AvatarModal";
 import { motion, AnimatePresence } from "motion/react";
-import SlideView from "./SlideView";
-import LiveAudioRoom from "./LiveAudioRoom";
 import SecureContent from "./SecureContent";
 
 interface StudentDashboardProps {
@@ -49,7 +45,7 @@ function formatCountdown(target: Date): string {
 }
 
 export default function StudentDashboard({ token, user, theme, onToggleTheme, onLogout, deepLink }: StudentDashboardProps) {
-  const [activeTab, setActiveTab] = useState<"notes" | "quizzes" | "live-classroom" | "exams" | "assignments" | "history" | "calendar" | "discussions">("notes");
+  const [activeTab, setActiveTab] = useState<"notes" | "quizzes" | "exams" | "assignments" | "history" | "calendar">("notes");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [periodTick, setPeriodTick] = useState(0);
   const [currentYear, setCurrentYear] = useState(user.year);
@@ -63,30 +59,13 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
   const [attempts, setAttempts] = useState<Record<string, StudentAttempt>>({});
   const [attemptsList, setAttemptsList] = useState<any[]>([]);
   const [examSubmissions, setExamSubmissions] = useState<any[]>([]);
-  const [announcements, setAnnouncements] = useState<any[]>([]);
-  const [dismissedAnns, setDismissedAnns] = useState<Set<string>>(new Set());
   const [leaderboard, setLeaderboard] = useState<any[] | null>(null);
   const [leaderboardQuizTitle, setLeaderboardQuizTitle] = useState("");
-  const [pushGranted, setPushGranted] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [avatarRefreshTrigger, setAvatarRefreshTrigger] = useState(0);
 
-  const [activeLiveSession, setActiveLiveSession] = useState<any | null>(null);
-  const [allLiveSessions, setAllLiveSessions] = useState<any[]>([]);
-  const [joinedCourseId, setJoinedCourseId] = useState<string | null>(null);
-  const [liveChats, setLiveChats] = useState<any[]>([]);
-  const [chatMessage, setChatMessage] = useState("");
-  const [isSendingChat, setIsSendingChat] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
-
-  // Live classroom sub-features
-  const [liveStudentTab, setLiveStudentTab] = useState<"slides" | "poll" | "chat">("slides");
-  const [audioOpen, setAudioOpen] = useState(true);
-  const [handRaised, setHandRaised] = useState(false);
-  const [myPollAnswer, setMyPollAnswer] = useState<string | null>(null);
-  const [isSpeakingAllowed, setIsSpeakingAllowed] = useState(false);
 
   // Exam state
   const [exams, setExams] = useState<any[]>([]);
@@ -141,82 +120,6 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
   // Offline indicator
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
-  const fetchAllLiveSessions = async () => {
-    try {
-      const res = await fetch("/api/lectures/active-all", { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setAllLiveSessions(await res.json());
-    } catch {}
-  };
-
-  const joinLiveSession = async (courseId: string) => {
-    try {
-      const res = await fetch(`/api/lectures/active/${courseId}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) {
-        const data = await res.json();
-        if (!data) return;
-        setActiveLiveSession(data);
-        setJoinedCourseId(courseId);
-        if (data.chats) setLiveChats(data.chats);
-        else setLiveChats([]);
-        if (data.id) {
-          fetch(`/api/lectures/${data.id}/join`, { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
-        }
-      }
-    } catch (e) {
-      console.error("Error joining live session:", e);
-    }
-  };
-
-  const shareWhatsApp = (type: string, id: string, title: string, detail?: string) => {
-    const url = `${window.location.origin}/${type}/${id}`;
-    const text = detail
-      ? `${title}\n${detail}\n\nView on Mmuta: ${url}`
-      : `${title}\n\nView on Mmuta: ${url}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
-  };
-
-  const fetchActiveLiveSession = async () => {
-    if (!joinedCourseId) { fetchAllLiveSessions(); return; }
-    try {
-      const res = await fetch(`/api/lectures/active/${joinedCourseId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (!data) { setActiveLiveSession(null); setJoinedCourseId(null); setIsSpeakingAllowed(false); fetchAllLiveSessions(); }
-        else {
-          setActiveLiveSession(data);
-          if (data.chats) setLiveChats(data.chats);
-          const wasAllowed = isSpeakingAllowed;
-          const nowAllowed = !!data.myAllowedToSpeak;
-          setIsSpeakingAllowed(nowAllowed);
-          // Mic state is driven reactively by isSpeakingAllowed → LiveAudioRoom isMicAllowed prop
-        }
-      }
-    } catch (e) {
-      console.error("Error fetching live lecture session:", e);
-    }
-  };
-
-  const handleToggleHandRaise = async () => {
-    if (!activeLiveSession) return;
-    const res = await fetch(`/api/lectures/${activeLiveSession.id}/hand-raise`, {
-      method: "POST", headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const d = await res.json();
-      setHandRaised(d.raised);
-    }
-  };
-
-  const handlePollRespond = async (pollId: string, answer: string) => {
-    if (!activeLiveSession) return;
-    setMyPollAnswer(answer);
-    await fetch(`/api/lectures/${activeLiveSession.id}/poll/${pollId}/respond`, {
-      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ answer }),
-    });
-  };
 
   const fetchExams = async () => {
     try {
@@ -237,6 +140,12 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
       const res = await fetch(`/api/assignments/${assignmentId}/my-submission`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setMyAssignmentSubmission(await res.json());
     } catch (e) { console.error("Error fetching assignment submission:", e); }
+  };
+
+  const shareWhatsApp = (type: string, id: string, title: string, detail?: string) => {
+    const url = `${window.location.origin}/${type}/${id}`;
+    const text = detail ? `${title}\n${detail}\n\nView on Mmuta: ${url}` : `${title}\n\nView on Mmuta: ${url}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   };
 
   const handleAssignmentSubmit = async () => {
@@ -316,49 +225,6 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
     if (activeTab === "history") { fetchAttempts(); fetchExamSubmissions(); fetchAssignmentSubmissionHistory(); }
   }, [activeTab]);
 
-  useEffect(() => {
-    let interval: any;
-    if (activeTab === "live-classroom") {
-      fetchActiveLiveSession();
-      interval = setInterval(fetchActiveLiveSession, 4000);
-    } else {
-      setActiveLiveSession(null);
-      setJoinedCourseId(null);
-      setAllLiveSessions([]);
-      setLiveChats([]);
-      setIsSpeakingAllowed(false);
-    }
-    return () => clearInterval(interval);
-  }, [activeTab, joinedCourseId]);
-
-  useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [liveChats]);
-
-  const handleSendChatMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatMessage.trim() || !activeLiveSession) return;
-    const msg = chatMessage.trim();
-    setChatMessage("");
-    setIsSendingChat(true);
-    try {
-      const res = await fetch(`/api/lectures/${activeLiveSession.id}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: msg }),
-      });
-      if (res.ok) {
-        const chat = await res.json();
-        setLiveChats((prev) => [...prev, chat]);
-      }
-    } catch (err) {
-      console.error("Error sending message:", err);
-    } finally {
-      setIsSendingChat(false);
-    }
-  };
 
   const handlePromoteYear = async (newYear: string) => {
     try {
@@ -452,7 +318,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
     if (!deepLink || deepLinkHandled.current) return;
     const tabMap: Record<string, typeof activeTab> = {
       quiz: "quizzes", note: "notes", exam: "exams",
-      assignment: "assignments", live: "live-classroom",
+      assignment: "assignments",
     };
     const tab = tabMap[deepLink.type];
     if (tab) setActiveTab(tab);
@@ -475,21 +341,15 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
       const a = assignments.find((a: any) => a.id === deepLink.id);
       if (a) { setActiveAssignment(a); fetchMyAssignmentSubmission(a.id); deepLinkHandled.current = true; }
     }
-    if (deepLink.type === "live" && allLiveSessions.length > 0) {
-      const sess = allLiveSessions.find((s: any) => s.id === deepLink.id);
-      if (sess) { joinLiveSession(sess.courseId); deepLinkHandled.current = true; }
-    }
     if (deepLink.type === "quiz" && quizzes.length > 0) {
       deepLinkHandled.current = true;
     }
-  }, [deepLink, allNotes, exams, assignments, allLiveSessions, quizzes]);
+  }, [deepLink, allNotes, exams, assignments, quizzes]);
 
   useEffect(() => {
     fetchCourses();
     fetchAttempts();
     fetchAllNotes();
-    fetchAnnouncements();
-    subscribeToPush();
     fetch("/api/departments").then(r => r.ok ? r.json() : []).then(setAvailableDepartments).catch(() => {});
     fetch("/api/student/profile", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
@@ -599,12 +459,6 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
     }
   };
 
-  const fetchAnnouncements = async () => {
-    try {
-      const res = await fetch("/api/announcements", { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setAnnouncements(await res.json());
-    } catch {}
-  };
 
   const fetchLeaderboard = async (quizId: string, title: string) => {
     setLeaderboard(null);
@@ -615,34 +469,6 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
     } catch {}
   };
 
-  const subscribeToPush = async () => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-    try {
-      const keyRes = await fetch("/api/vapid-public-key");
-      const { key } = await keyRes.json();
-      if (!key) return;
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") return;
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(key),
-      });
-      await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(sub),
-      });
-      setPushGranted(true);
-    } catch {}
-  };
-
-  function urlBase64ToUint8Array(base64String: string) {
-    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-    const rawData = atob(base64);
-    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
-  }
 
   const handleStartExam = async (quiz: Quiz) => {
     if (attempts[quiz.id]?.isCompleted) {
@@ -1454,8 +1280,6 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
             { id: "assignments",    icon: Pencil,        label: "Assignments",  live: false },
             { id: "history",        icon: ClipboardList, label: "My Grades",    live: false },
             { id: "calendar",       icon: Calendar,      label: "Calendar",     live: false },
-            { id: "discussions",    icon: MessageSquare, label: "Discussions",  live: false },
-            { id: "live-classroom", icon: Radio,         label: "Live Class",   live: true  },
           ].map((item) => {
             const isActive = activeTab === (item.id as typeof activeTab);
             return (
@@ -1469,14 +1293,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                     : "text-[#3a3a3c] dark:text-white/60 hover:bg-black/[0.05] dark:hover:bg-white/[0.06] hover:text-[#1d1d1f] dark:hover:text-white/85"
                 }`}
               >
-                {item.live && !isActive ? (
-                  <span className="relative flex h-4 w-4 flex-shrink-0 items-center justify-center">
-                    <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-red-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-                  </span>
-                ) : (
-                  <item.icon className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-emerald-500" : ""}`} strokeWidth={1.6} />
-                )}
+                <item.icon className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-emerald-500" : ""}`} strokeWidth={1.6} />
                 <span className="hidden sm:inline">{item.label}</span>
               </button>
             );
@@ -1661,8 +1478,6 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
                 { id: "assignments",    icon: Pencil,        label: "Assignments" },
                 { id: "history",        icon: ClipboardList, label: "My Grades"   },
                 { id: "calendar",       icon: Calendar,      label: "Calendar"    },
-                { id: "discussions",    icon: MessageSquare, label: "Discussions" },
-                { id: "live-classroom", icon: Radio,         label: "Live Class"  },
               ].map((item) => {
                 const isActive = activeTab === (item.id as typeof activeTab);
                 return (
@@ -1769,9 +1584,7 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
               : activeTab === "exams" ? "Written Examinations"
               : activeTab === "assignments" ? "Assignments"
               : activeTab === "history" ? "My Grades"
-              : activeTab === "calendar" ? "Calendar"
-              : activeTab === "discussions" ? "Discussions"
-              : "Virtual Classroom"}
+              : "Calendar"}
           </h1>
           <div className="flex items-center gap-1">
             {selectedCourse && (
@@ -1792,7 +1605,6 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
               </span>
             )}
             {/* In-app notification bell (push prompt embedded inside on all screens) */}
-            <NotificationBell token={token} onRequestPush={(!pushGranted && "Notification" in window && Notification.permission !== "granted") ? subscribeToPush : undefined} />
             {/* Mobile-only: theme + logout */}
             <button
               onClick={onToggleTheme}
@@ -1813,20 +1625,8 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
 
         {/* Scrollable content */}
         <main className="flex-1 overflow-y-auto">
-          <div className={`py-5 pb-[96px] sm:pb-5 max-w-5xl mx-auto w-full space-y-5 ${activeTab === "live-classroom" ? "px-2 sm:px-6" : "px-6"}`}>
+          <div className={`py-5 pb-[96px] sm:pb-5 max-w-5xl mx-auto w-full space-y-5 px-6`}>
 
-          {/* ── ANNOUNCEMENTS BANNER ── */}
-          {announcements.filter(a => !dismissedAnns.has(a.id)).slice(0, 3).map(ann => (
-            <motion.div key={ann.id} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3 p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 rounded-[12px]">
-              <Megaphone className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[12.5px] font-semibold text-amber-900 dark:text-amber-200">{ann.title}</p>
-                <p className="text-[11.5px] text-amber-800 dark:text-amber-300/80 mt-0.5 leading-relaxed">{ann.body}</p>
-                <p className="text-[10px] font-mono text-amber-600/60 dark:text-amber-400/40 mt-1">{ann.lecturer?.name} · {new Date(ann.createdAt).toLocaleDateString()}</p>
-              </div>
-              <button onClick={() => setDismissedAnns(p => new Set([...p, ann.id]))} className="flex-shrink-0 p-1 text-amber-400 hover:text-amber-600 cursor-pointer"><X className="h-3.5 w-3.5" /></button>
-            </motion.div>
-          ))}
 
           {/* ── PROGRESS OVERVIEW ── */}
           {attemptsList.filter(a => a.isCompleted).length > 0 && (
@@ -2181,253 +1981,6 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
           )}
 
           {/* ── LIVE CLASSROOM TAB ── */}
-          {activeTab === "live-classroom" && (
-            <div id="live-classroom-view-container" className="w-full overflow-x-hidden">
-              <motion.div className="apple-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 280, damping: 26 }}>
-                <div className="px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-[14px] font-semibold text-[#1d1d1f] dark:text-white/90 flex items-center gap-2">
-                      <Radio className="h-4 w-4 text-red-500 animate-pulse" />
-                      Virtual Classroom
-                    </h2>
-                    <p className="apple-subtitle">
-                      {activeLiveSession
-                        ? `${activeLiveSession.course?.code ?? ""} · ${activeLiveSession.topic}`
-                        : allLiveSessions.length > 0
-                          ? `${allLiveSessions.length} live class${allLiveSessions.length !== 1 ? "es" : ""} available`
-                          : "No live classes right now"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {activeLiveSession && (
-                      <>
-                        <button
-                          onClick={handleToggleHandRaise}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-[10px] border transition-colors ${handRaised ? "bg-amber-100 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400" : "border-black/[0.09] dark:border-white/[0.10] text-[#3a3a3c] dark:text-white/60 hover:border-amber-300"}`}
-                        >
-                          <ThumbsUp className="h-3.5 w-3.5" /> {handRaised ? "Hand Raised" : "Raise Hand"}
-                        </button>
-                        <button onClick={() => { setActiveLiveSession(null); setJoinedCourseId(null); fetchAllLiveSessions(); }}
-                          className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold border border-black/[0.09] dark:border-white/[0.10] text-[#6e6e73] dark:text-white/40 hover:text-red-500 hover:border-red-300 rounded-[8px] transition cursor-pointer">
-                          <ArrowLeft className="h-3.5 w-3.5" /> Leave
-                        </button>
-                      </>
-                    )}
-                    {activeLiveSession ? (
-                      <span className="flex items-center gap-1.5 px-3 py-1 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 text-[12px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-900/30 rounded-full">
-                        <span className="h-1.5 w-1.5 bg-red-600 rounded-full animate-ping" />
-                        Live
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1 bg-black/[0.04] dark:bg-white/[0.04] text-[#6e6e73] dark:text-white/40 text-[12px] font-bold uppercase tracking-wider border border-black/[0.07] dark:border-white/[0.07] rounded-full">Offline</span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-2 sm:p-5">
-                  {!activeLiveSession ? (
-                    <div className="space-y-4">
-                      {allLiveSessions.length === 0 ? (
-                        <div className="py-16 text-center border border-dashed border-black/[0.10] dark:border-white/[0.10] rounded-[12px]">
-                          <Radio className="h-8 w-8 text-black/20 dark:text-white/20 mx-auto mb-3" />
-                          <h4 className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/70">No Live Lectures Right Now</h4>
-                          <p className="text-[12px] text-[#6e6e73] dark:text-white/40 max-w-sm mx-auto mt-1.5 leading-relaxed">When a lecturer goes live, their class will appear here. Check back soon.</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <p className="text-[11px] font-bold uppercase tracking-widest text-[#6e6e73] dark:text-white/40">Live Now — Select a Class to Join</p>
-                          {allLiveSessions.map((session: any) => (
-                            <motion.div key={session.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                              className={`flex items-center justify-between gap-3 p-4 border bg-red-50/40 dark:bg-red-950/10 rounded-[14px] ${highlightId === session.id ? "border-emerald-400 dark:border-emerald-500 ring-2 ring-emerald-400/30" : "border-red-100 dark:border-red-900/30"}`}>
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="flex-shrink-0 relative">
-                                  <span className="flex h-2.5 w-2.5">
-                                    <span className="animate-ping absolute h-2.5 w-2.5 rounded-full bg-red-400 opacity-75" />
-                                    <span className="relative h-2.5 w-2.5 rounded-full bg-red-500" />
-                                  </span>
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-[13px] font-semibold text-[#1d1d1f] dark:text-white/90 truncate">{session.topic}</p>
-                                  <p className="text-[11.5px] text-[#6e6e73] dark:text-white/50 truncate">
-                                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{session.course?.code}</span>
-                                    {" · "}{session.course?.title}
-                                    {" · "}{session.course?.lecturer?.name}
-                                  </p>
-                                  <p className="text-[10.5px] font-mono text-[#6e6e73] dark:text-white/30 mt-0.5">
-                                    {session.attendance?.length ?? 0} student{session.attendance?.length !== 1 ? "s" : ""} joined · Started {new Date(session.createdAt).toLocaleTimeString()}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <button
-                                  type="button"
-                                  title="Share on WhatsApp"
-                                  onClick={() => shareWhatsApp("live", session.id, session.topic, `LIVE NOW · ${session.course?.code}`)}
-                                  className="p-1.5 rounded-lg text-[#8e8e93] dark:text-white/30 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition cursor-pointer"
-                                >
-                                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                                </button>
-                                <button onClick={() => joinLiveSession(session.course.id)}
-                                  className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-[12px] font-semibold rounded-[10px] transition cursor-pointer">
-                                  <Play className="h-3.5 w-3.5 fill-white" /> Join
-                                </button>
-                              </div>
-                            </motion.div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (() => {
-                    const slides = activeLiveSession.content.split(/^---$/m).map((s: string) => s.trim()).filter(Boolean);
-                    const currentSlide = activeLiveSession.currentSlide ?? 0;
-                    const slide = slides[Math.min(currentSlide, slides.length - 1)] ?? activeLiveSession.content;
-                    const activePoll: any = (activeLiveSession.polls ?? [])[0] ?? null;
-
-                    return (
-                      <div className="space-y-2 sm:space-y-3">
-                        {activeLiveSession.attachmentName && activeLiveSession.attachmentData && (
-                          <div className="flex items-center justify-between gap-3 p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-[12px]">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                              <span className="text-[12.5px] font-semibold text-[#1d1d1f] dark:text-white/85">Shared File: {activeLiveSession.attachmentName}</span>
-                            </div>
-                            <a href={activeLiveSession.attachmentData} download={activeLiveSession.attachmentName}
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold rounded-[8px] transition">Download</a>
-                          </div>
-                        )}
-
-                        {/* Speaking permission banner */}
-                        {isSpeakingAllowed && (
-                          <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700/50 rounded-[12px]">
-                            <span className="text-[18px]">🎤</span>
-                            <div>
-                              <p className="text-[12.5px] font-bold text-emerald-700 dark:text-emerald-400">You've been allowed to speak</p>
-                              <p className="text-[11px] text-emerald-600/70 dark:text-emerald-400/60">Your mic is now active in the audio room below</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* ── Slide — primary content, takes full width ── */}
-                        <SlideView
-                          content={slide}
-                          slideNumber={Math.min(currentSlide, slides.length - 1) + 1}
-                          totalSlides={slides.length}
-                          topic={activeLiveSession.topic}
-                          courseCode={activeLiveSession.course?.code}
-                        />
-                        <p className="text-center text-[10px] font-mono text-[#6e6e73] dark:text-white/30">
-                          <span className="inline-flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full" />
-                            Hover slide → fullscreen &nbsp;·&nbsp; Slides auto-advance
-                          </span>
-                        </p>
-
-                        {/* ── Compact audio bar ── */}
-                        <div className="flex items-center justify-between px-3.5 py-2 bg-slate-900 dark:bg-black/50 rounded-[10px]">
-                          <div className="flex items-center gap-2">
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute h-2 w-2 rounded-full bg-emerald-400 opacity-75" />
-                              <span className="relative h-2 w-2 rounded-full bg-emerald-500" />
-                            </span>
-                            <span className="text-[11.5px] font-semibold text-slate-200">
-                              {isSpeakingAllowed ? "Mic Active" : "Audio · Mic Muted"}
-                            </span>
-                            <span className="text-[10px] font-mono text-slate-500">{activeLiveSession.course?.code ?? ""}</span>
-                          </div>
-                          <button onClick={() => setAudioOpen(o => !o)}
-                            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-white border border-white/10 hover:border-white/20 rounded-[7px] transition cursor-pointer">
-                            <Mic className="h-3 w-3" /> {audioOpen ? "Hide" : "Audio"}
-                          </button>
-                        </div>
-
-                        {/* Collapsible audio room */}
-                        {audioOpen && (
-                          <LiveAudioRoom
-                            roomId={activeLiveSession.id}
-                            displayName={user.fullName}
-                            role="student"
-                            isMicAllowed={isSpeakingAllowed}
-                          />
-                        )}
-                        <div style={{ display: "none" }}>{String(audioOpen)}</div>
-
-                        {/* Sub-tabs: Chat + Poll only */}
-                        <div className="flex gap-1 bg-black/[0.04] dark:bg-white/[0.04] rounded-[12px] p-1 border border-black/[0.06] dark:border-white/[0.05]">
-                          {([
-                            { id: "poll",   icon: BarChart2,     label: `Poll${activePoll ? " •" : ""}` },
-                            { id: "chat",   icon: MessageSquare, label: `Chat (${liveChats.length})` },
-                          ] as { id: "slides" | "poll" | "chat"; icon: React.ElementType; label: string }[]).map(tab => (
-                            <button key={tab.id} onClick={() => setLiveStudentTab(tab.id)}
-                              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-[10px] transition-all duration-150 ${liveStudentTab === tab.id ? "bg-[#ffffff] dark:bg-white/[0.10] text-[#1d1d1f] dark:text-white/90 shadow-sm border border-black/[0.07] dark:border-white/[0.08]" : "text-[#6e6e73] dark:text-white/50 hover:text-[#1d1d1f] dark:hover:text-white/75"}`}>
-                              <tab.icon className="h-3.5 w-3.5 flex-shrink-0" />
-                              {tab.label}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Poll */}
-                        {liveStudentTab === "poll" && (
-                          <div>
-                            {!activePoll ? (
-                              <div className="py-10 text-center border border-dashed border-black/[0.10] dark:border-white/[0.10] rounded-[12px]">
-                                <p className="text-[12px] text-[#6e6e73] dark:text-white/40">No active poll right now. Check back soon.</p>
-                              </div>
-                            ) : (
-                              <div className="bg-amber-50/60 dark:bg-amber-950/10 border border-amber-100 dark:border-amber-900/30 rounded-[12px] p-5 space-y-4">
-                                <p className="apple-title">{activePoll.question}</p>
-                                <div className="space-y-2">
-                                  {(JSON.parse(activePoll.optionsJson) as string[]).map(opt => (
-                                    <button key={opt} onClick={() => handlePollRespond(activePoll.id, opt)}
-                                      className={`w-full text-left px-4 py-3 rounded-[10px] border text-[13px] font-semibold transition-all ${myPollAnswer === opt ? "bg-emerald-600 border-emerald-600 text-white" : "border-black/[0.08] dark:border-white/[0.09] text-[#1d1d1f] dark:text-white/80 hover:border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"}`}>
-                                      {opt}
-                                      {myPollAnswer === opt && <CheckCircle className="h-3.5 w-3.5 ml-1.5 inline-block" />}
-                                    </button>
-                                  ))}
-                                </div>
-                                {myPollAnswer && <p className="text-[12px] text-emerald-600 dark:text-emerald-400 text-center">Response recorded: <strong>{myPollAnswer}</strong></p>}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Chat */}
-                        {liveStudentTab === "chat" && (
-                          <div className="border border-black/[0.07] dark:border-white/[0.07] rounded-[12px] overflow-hidden flex flex-col h-[380px]">
-                            <div className="flex-1 p-3 overflow-y-auto space-y-3 bg-black/[0.01] dark:bg-white/[0.02]">
-                              {liveChats.length === 0 ? (
-                                <div className="h-full flex items-center justify-center text-center text-[#6e6e73] dark:text-white/35 text-[11px] font-medium">Start the discussion!</div>
-                              ) : liveChats.map((chat) => {
-                                const isMe = chat.senderId === user.id;
-                                const isStaff = chat.senderRole === "lecturer";
-                                return (
-                                  <div key={chat.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
-                                    <UserAvatar userId={chat.senderId} role={isStaff ? "lecturer" : "student"} size={26} initials={chat.senderName} className="shrink-0" />
-                                    <div className={`max-w-[75%] flex flex-col gap-0.5 ${isMe ? "items-end" : "items-start"}`}>
-                                      <span className={`text-[11px] font-bold font-mono uppercase tracking-wide ${isStaff ? "text-amber-600 dark:text-amber-500" : "text-[#6e6e73] dark:text-white/40"}`}>{chat.senderName}{isStaff && " · Staff"}</span>
-                                      <div className={`px-3 py-2 rounded-2xl text-[12px] break-words ${isMe ? "bg-emerald-700 text-white rounded-br-md" : isStaff ? "bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/30 text-slate-800 dark:text-slate-200 rounded-bl-md" : "bg-[#f0f0f0] dark:bg-white/[0.07] text-[#1d1d1f] dark:text-white/85 rounded-bl-md"}`}>{chat.message}</div>
-                                      <span className="text-[8.5px] text-[#6e6e73] dark:text-white/30 font-mono">{new Date(chat.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                              <div ref={chatEndRef} />
-                            </div>
-                            <form onSubmit={handleSendChatMessage} className="p-2.5 border-t border-black/[0.06] dark:border-white/[0.06] flex gap-2 bg-[#ffffff] dark:bg-[#1c1c1e]">
-                              <input type="text" required value={chatMessage} onChange={e => setChatMessage(e.target.value)} placeholder="Type a message..."
-                                className="flex-1 px-3 py-2.5 bg-black/[0.04] dark:bg-white/[0.07] border border-black/[0.09] dark:border-white/[0.10] rounded-[10px] text-[12.5px] text-[#1d1d1f] dark:text-white/90 placeholder-[#6e6e73] dark:placeholder-white/30 outline-none focus:border-emerald-500/60 transition" />
-                              <button type="submit" disabled={isSendingChat} className="flex items-center justify-center w-9 h-9 rounded-[10px] bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 transition flex-shrink-0">
-                                <Send className="h-3.5 w-3.5 text-white" />
-                              </button>
-                            </form>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </motion.div>
-            </div>
-          )}
 
           {/* ── EXAMS TAB ── */}
           {activeTab === "exams" && (
@@ -3185,9 +2738,6 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
           {activeTab === "calendar" && <CalendarView token={token} />}
 
           {/* ── DISCUSSIONS TAB ── */}
-          {activeTab === "discussions" && (
-            <DiscussionBoard token={token} userId={user.id} userRole="student" userName={user.fullName} courses={courses.map(c => ({ id: c.id, code: c.code, title: c.title }))} />
-          )}
 
           </div>{/* /max-w-5xl */}
         </main>
@@ -3201,7 +2751,6 @@ export default function StudentDashboard({ token, user, theme, onToggleTheme, on
             { id: "quizzes",       label: "Quizzes",    Icon: Award          },
             { id: "history",       label: "Grades",     Icon: ClipboardList  },
             { id: "calendar",      label: "Calendar",   Icon: Calendar       },
-            { id: "discussions",   label: "Chat",       Icon: MessageSquare  },
           ] as const).map(({ id, label, Icon }) => {
             const isActive = activeTab === id;
             return (

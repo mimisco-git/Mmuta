@@ -1,5 +1,4 @@
 import express from "express";
-import Ably from "ably";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
@@ -11,37 +10,9 @@ import mammoth from "mammoth";
 import JSZip from "jszip";
 import OpenAI from "openai";
 import rateLimit from "express-rate-limit";
-import webpush from "web-push";
 import { prisma } from "./src/lib/db.js";
 import { seedDatabase } from "./src/lib/seed.js";
 
-// ── Web Push (VAPID) setup — graceful no-op if keys not configured ──
-const PUSH_ENABLED = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
-if (PUSH_ENABLED) {
-  webpush.setVapidDetails(
-    `mailto:${process.env.VAPID_EMAIL || "admin@quizportal.app"}`,
-    process.env.VAPID_PUBLIC_KEY!,
-    process.env.VAPID_PRIVATE_KEY!
-  );
-}
-
-async function sendPushToAll(role: "student" | "lecturer" | "all", title: string, body: string, url = "/") {
-  if (!PUSH_ENABLED) return;
-  const where = role === "all" ? {} : { userRole: role };
-  const subs = await prisma.pushSubscription.findMany({ where });
-  const payload = JSON.stringify({ title, body, url });
-  await Promise.allSettled(
-    subs.map(async (sub) => {
-      try {
-        await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload);
-      } catch (err: any) {
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
-        }
-      }
-    })
-  );
-}
 
 // In-memory grading job tracker — keyed by "exam_<id>" or "assignment_<id>"
 const gradingJobs = new Map<string, { total: number; done: number; errors: number; inProgress: boolean }>();
@@ -64,7 +35,6 @@ async function getStudentFilter(studentId: string): Promise<{ depts: string[]; y
 
 const app = express();
 const PORT = 3000;
-const ablyRest = process.env.ABLY_API_KEY ? new Ably.Rest(process.env.ABLY_API_KEY) : null;
 
 // Explicit CORS policy — restricts cross-origin requests to the configured frontend origin
 app.use(cors({ origin: process.env.FRONTEND_URL ?? true, credentials: true }));
@@ -931,6 +901,42 @@ app.get("/api/super-admin/stats", authenticateSuperAdmin, async (_req, res) => {
   }
 });
 
+// Credits: view a school's credit balance + recent transactions
+app.get("/api/super-admin/schools/:id/credits", authenticateSuperAdmin, async (req, res) => {
+  try {
+    const school = await prisma.school.findUnique({ where: { id: req.params.id }, select: { id: true, name: true, creditBalance: true } });
+    if (!school) return res.status(404).json({ error: "School not found" });
+    const transactions = await prisma.creditTransaction.findMany({ where: { schoolId: req.params.id }, orderBy: { createdAt: "desc" }, take: 20 });
+    return res.json({ balance: school.creditBalance, transactions });
+  } catch { return res.status(500).json({ error: "Failed to fetch credits" }); }
+});
+
+// Credits: add credits to a school
+app.post("/api/super-admin/schools/:id/credits/add", authenticateSuperAdmin, async (req, res) => {
+  const { amount, description } = req.body;
+  if (!amount || typeof amount !== "number" || amount <= 0) return res.status(400).json({ error: "amount must be a positive number" });
+  try {
+    const school = await prisma.school.findUnique({ where: { id: req.params.id } });
+    if (!school) return res.status(404).json({ error: "School not found" });
+    await prisma.$transaction([
+      prisma.school.update({ where: { id: req.params.id }, data: { creditBalance: { increment: amount } } }),
+      prisma.creditTransaction.create({ data: { schoolId: req.params.id, amount, type: "topup", description: description || `Admin top-up: +${amount} credits` } }),
+    ]);
+    const updated = await prisma.school.findUnique({ where: { id: req.params.id }, select: { creditBalance: true } });
+    return res.json({ newBalance: updated?.creditBalance });
+  } catch { return res.status(500).json({ error: "Failed to add credits" }); }
+});
+
+// School: view own credit balance
+app.get("/api/school/credits", authenticateToken, requireSchoolAdmin, async (req: any, res) => {
+  try {
+    const school = await prisma.school.findUnique({ where: { id: req.user.schoolId }, select: { creditBalance: true } });
+    const transactions = await prisma.creditTransaction.findMany({ where: { schoolId: req.user.schoolId }, orderBy: { createdAt: "desc" }, take: 10 });
+    return res.json({ balance: school?.creditBalance ?? 0, recentTransactions: transactions });
+  } catch { return res.status(500).json({ error: "Failed to fetch credits" }); }
+});
+
+
 // -------------------------------------------------------------
 // PUBLIC METADATA (no auth — safe preview data only)
 // -------------------------------------------------------------
@@ -979,16 +985,6 @@ app.get("/api/public/assignment/:id", async (req, res) => {
   } catch { return res.status(500).json({ error: "Server error" }); }
 });
 
-app.get("/api/public/live/:id", async (req, res) => {
-  try {
-    const session = await prisma.lectureSession.findUnique({
-      where: { id: req.params.id },
-      select: { topic: true, isActive: true, courseId: true, course: { select: { code: true, title: true } } },
-    });
-    if (!session) return res.status(404).json({ error: "Not found" });
-    return res.json({ topic: session.topic, isActive: session.isActive, courseId: session.courseId, course: session.course });
-  } catch { return res.status(500).json({ error: "Server error" }); }
-});
 
 // -------------------------------------------------------------
 // COURSE & NOTE PLATFORM API
@@ -1204,7 +1200,6 @@ app.post("/api/quizzes", authenticateToken, async (req: any, res) => {
       });
     }
 
-    sendPushToAll("student", "New Quiz Available", `A new quiz "${quiz.title}" has been posted. Open the app to take it.`, "/").catch(() => {});
     return res.status(201).json(quiz);
   } catch (error: any) {
     console.error("Error creating quiz:", error);
@@ -1424,6 +1419,17 @@ app.post("/api/quiz/start", authenticateToken, async (req: any, res) => {
         });
       }
 
+      // Deduct 1 credit for new quiz attempt
+      if (req.user.schoolId) {
+        const school = await prisma.school.findUnique({ where: { id: req.user.schoolId }, select: { creditBalance: true } });
+        if (!school || school.creditBalance < 1) {
+          return res.status(402).json({ error: "Insufficient exam credits. Please contact your school admin." });
+        }
+        await prisma.$transaction([
+          prisma.school.update({ where: { id: req.user.schoolId }, data: { creditBalance: { decrement: 1 } } }),
+          prisma.creditTransaction.create({ data: { schoolId: req.user.schoolId, amount: -1, type: "deduction", description: `Quiz attempt: ${quizId}` } }),
+        ]);
+      }
       // Create a brand new attempt
       attempt = await prisma.studentAttempt.create({
         data: {
@@ -2009,468 +2015,6 @@ app.get("/api/student/exam-submissions", authenticateToken, async (req: any, res
 });
 
 // -------------------------------------------------------------
-// LIVE LECTURING & STUDY CHANNELS API
-// -------------------------------------------------------------
-app.post("/api/lectures", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") {
-    return res.status(403).json({ error: "Only lecturers can broadcast lectures." });
-  }
-  const { courseId, topic, content } = req.body;
-  if (!courseId || !topic || !content) {
-    return res.status(400).json({ error: "Course ID, topic, and content are required." });
-  }
-
-  try {
-    // Deactivate previous active lectures for this course first
-    await prisma.lectureSession.updateMany({
-      where: { courseId, isActive: true },
-      data: { isActive: false },
-    });
-
-    const session = await prisma.lectureSession.create({
-      data: {
-        courseId,
-        topic: topic.trim(),
-        content,
-        isActive: true,
-        jitsiRoom: `mmuta-${Date.now().toString(36)}`,
-      },
-    });
-
-    return res.status(201).json(session);
-  } catch (error: any) {
-    console.error("Error launching live lecture:", error);
-    return res.status(500).json({ error: "Error launching live lecture" });
-  }
-});
-
-app.get("/api/lectures/active-all", authenticateToken, async (req: any, res) => {
-  try {
-    const sessions = await prisma.lectureSession.findMany({
-      where: { isActive: true },
-      include: {
-        course: { select: { id: true, code: true, title: true, lecturer: { select: { name: true } } } },
-        attendance: { select: { studentId: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    return res.json(sessions);
-  } catch (error: any) {
-    console.error("Error fetching all active sessions:", error);
-    return res.status(500).json({ error: "Error fetching active sessions" });
-  }
-});
-
-app.get("/api/lectures/active/:courseId", authenticateToken, async (req: any, res) => {
-  const { courseId } = req.params;
-  try {
-    const session = await prisma.lectureSession.findFirst({
-      where: { courseId, isActive: true },
-      include: {
-        chats: { orderBy: { createdAt: "asc" } },
-        attendance: { select: { studentId: true, studentName: true, joinedAt: true } },
-        handRaises: { where: { isResolved: false }, orderBy: { raisedAt: "asc" } },
-        polls: {
-          where: { isActive: true },
-          take: 1,
-          include: { responses: { select: { studentId: true, answer: true, studentName: true } } },
-        },
-      },
-    });
-    if (!session) return res.json(null);
-    // Tell the student if they've been granted mic permission
-    const myRaise = req.user.role === "student"
-      ? session.handRaises.find((h) => h.studentId === req.user.id)
-      : null;
-    return res.json({ ...session, myAllowedToSpeak: myRaise?.allowedToSpeak ?? false });
-  } catch (error: any) {
-    console.error("Error fetching active lecture session:", error);
-    return res.status(500).json({ error: "Error fetching active lecture session" });
-  }
-});
-
-app.post("/api/lectures/:id/chat", authenticateToken, async (req: any, res) => {
-  const { id } = req.params;
-  const { message } = req.body;
-
-  if (!message || !message.trim()) {
-    return res.status(400).json({ error: "Message content cannot be empty." });
-  }
-
-  try {
-    const session = await prisma.lectureSession.findUnique({ where: { id }, include: { course: { select: { lecturerId: true } } } });
-    if (!session) return res.status(404).json({ error: "Session not found." });
-    if (req.user.role === "lecturer" && session.course.lecturerId !== req.user.id)
-      return res.status(403).json({ error: "Access denied." });
-    const chat = await prisma.lectureChat.create({
-      data: {
-        lectureSessionId: id,
-        message: message.trim(),
-        senderId: req.user.id,
-        senderName: req.user.role === "student" ? req.user.fullName : req.user.name,
-        senderRole: req.user.role,
-      },
-    });
-    return res.status(201).json(chat);
-  } catch (error: any) {
-    console.error("Error posting chat in lecture:", error);
-    return res.status(500).json({ error: "Error posting chat message" });
-  }
-});
-
-app.get("/api/lectures/:id/chat", authenticateToken, async (req: any, res) => {
-  const { id } = req.params;
-  try {
-    const session = await prisma.lectureSession.findUnique({ where: { id }, include: { course: { select: { lecturerId: true } } } });
-    if (!session) return res.status(404).json({ error: "Session not found." });
-    if (req.user.role === "lecturer" && session.course.lecturerId !== req.user.id)
-      return res.status(403).json({ error: "Access denied." });
-    const chats = await prisma.lectureChat.findMany({
-      where: { lectureSessionId: id },
-      orderBy: { createdAt: "asc" },
-    });
-    return res.json(chats);
-  } catch (error: any) {
-    console.error("Error fetching chat messages:", error);
-    return res.status(500).json({ error: "Error fetching chat messages" });
-  }
-});
-
-app.post("/api/lectures/:id/end", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") {
-    return res.status(403).json({ error: "Only lecturers can end lectures." });
-  }
-  const { id } = req.params;
-  try {
-    const session = await prisma.lectureSession.findUnique({ where: { id }, include: { course: { select: { lecturerId: true } } } });
-    if (!session) return res.status(404).json({ error: "Lecture not found" });
-    if (session.course.lecturerId !== req.user.id) return res.status(403).json({ error: "Access denied." });
-    const ended = await prisma.lectureSession.update({
-      where: { id },
-      data: { isActive: false },
-    });
-    return res.json(ended);
-  } catch (error: any) {
-    console.error("Error ending live lecture:", error);
-    return res.status(500).json({ error: "Error ending live lecture" });
-  }
-});
-
-app.patch("/api/lectures/:id/content", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") {
-    return res.status(403).json({ error: "Only lecturers can update lecture content." });
-  }
-  const { id } = req.params;
-  const { content } = req.body;
-  if (!content) {
-    return res.status(400).json({ error: "Content is required to update slides." });
-  }
-
-  try {
-    const session = await prisma.lectureSession.findUnique({ where: { id }, include: { course: { select: { lecturerId: true } } } });
-    if (!session) return res.status(404).json({ error: "Lecture not found" });
-    if (session.course.lecturerId !== req.user.id) return res.status(403).json({ error: "Access denied." });
-    const updated = await prisma.lectureSession.update({
-      where: { id },
-      data: { content },
-    });
-    return res.json(updated);
-  } catch (error: any) {
-    console.error("Error updating lecture content:", error);
-    return res.status(500).json({ error: "Error updating lecture content" });
-  }
-});
-
-// Record student attendance (upsert — safe to call on every poll)
-app.post("/api/lectures/:id/join", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "student") return res.json({ ok: true });
-  try {
-    await prisma.lectureAttendance.upsert({
-      where: { sessionId_studentId: { sessionId: req.params.id, studentId: req.user.id } },
-      update: {},
-      create: { sessionId: req.params.id, studentId: req.user.id, studentName: req.user.fullName ?? req.user.name ?? "Student" },
-    });
-    return res.json({ ok: true });
-  } catch (e) {
-    return res.json({ ok: true }); // non-critical
-  }
-});
-
-// Get attendance list (lecturer)
-app.get("/api/lectures/:id/attendance", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  try {
-    const session = await prisma.lectureSession.findUnique({
-      where: { id: req.params.id },
-      include: { course: { select: { lecturerId: true } } },
-    });
-    if (!session || session.course.lecturerId !== req.user.id)
-      return res.status(403).json({ error: "Access denied." });
-    const list = await prisma.lectureAttendance.findMany({
-      where: { sessionId: req.params.id },
-      orderBy: { joinedAt: "asc" },
-    });
-    return res.json(list);
-  } catch (e) {
-    return res.status(500).json({ error: "Failed to fetch attendance" });
-  }
-});
-
-// Student raises / lowers hand
-app.post("/api/lectures/:id/hand-raise", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "student") return res.status(403).json({ error: "Students only" });
-  try {
-    const existing = await prisma.handRaise.findFirst({
-      where: { sessionId: req.params.id, studentId: req.user.id, isResolved: false },
-    });
-    if (existing) {
-      await prisma.handRaise.update({ where: { id: existing.id }, data: { isResolved: true } });
-      return res.json({ raised: false });
-    }
-    await prisma.handRaise.create({
-      data: { sessionId: req.params.id, studentId: req.user.id, studentName: req.user.fullName ?? req.user.name ?? "Student" },
-    });
-    return res.json({ raised: true });
-  } catch (e) {
-    return res.status(500).json({ error: "Failed to toggle hand raise" });
-  }
-});
-
-// Lecturer dismisses a hand raise
-app.delete("/api/lectures/:id/hand-raises/:raiseId", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  const ownerCheck = await requireLectureOwner(req.params.id, req.user.id);
-  if (ownerCheck !== "ok") return res.status(ownerCheck === "not_found" ? 404 : 403).json({ error: "Access denied." });
-  try {
-    await prisma.handRaise.update({ where: { id: req.params.raiseId }, data: { isResolved: true, allowedToSpeak: false } });
-    return res.json({ ok: true });
-  } catch (e) {
-    return res.status(500).json({ error: "Failed to dismiss hand raise" });
-  }
-});
-
-// Lecturer grants mic permission to a student
-app.post("/api/lectures/:id/hand-raises/:raiseId/allow", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  const ownerCheck = await requireLectureOwner(req.params.id, req.user.id);
-  if (ownerCheck !== "ok") return res.status(ownerCheck === "not_found" ? 404 : 403).json({ error: "Access denied." });
-  try {
-    const raise = await prisma.handRaise.update({
-      where: { id: req.params.raiseId },
-      data: { allowedToSpeak: true },
-    });
-    return res.json(raise);
-  } catch (e) {
-    return res.status(500).json({ error: "Failed to grant speaking permission" });
-  }
-});
-
-// Lecturer revokes mic permission (mutes student)
-app.post("/api/lectures/:id/hand-raises/:raiseId/mute", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  const ownerCheck = await requireLectureOwner(req.params.id, req.user.id);
-  if (ownerCheck !== "ok") return res.status(ownerCheck === "not_found" ? 404 : 403).json({ error: "Access denied." });
-  try {
-    const raise = await prisma.handRaise.update({
-      where: { id: req.params.raiseId },
-      data: { allowedToSpeak: false },
-    });
-    return res.json(raise);
-  } catch (e) {
-    return res.status(500).json({ error: "Failed to mute student" });
-  }
-});
-
-// Helper — verify caller owns the lecture session
-async function requireLectureOwner(sessionId: string, lecturerId: string) {
-  const session = await prisma.lectureSession.findUnique({ where: { id: sessionId }, include: { course: { select: { lecturerId: true } } } });
-  if (!session) return "not_found";
-  if (session.course.lecturerId !== lecturerId) return "forbidden";
-  return "ok";
-}
-
-// Lecturer creates a poll
-app.post("/api/lectures/:id/poll", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  const ownership = await requireLectureOwner(req.params.id, req.user.id).catch(() => "error");
-  if (ownership === "not_found") return res.status(404).json({ error: "Lecture not found" });
-  if (ownership !== "ok") return res.status(403).json({ error: "Access denied." });
-  const { question, options } = req.body;
-  if (!question || !Array.isArray(options) || options.length < 2) {
-    return res.status(400).json({ error: "Question and at least 2 options required" });
-  }
-  try {
-    await prisma.lecturePoll.updateMany({ where: { sessionId: req.params.id, isActive: true }, data: { isActive: false } });
-    const poll = await prisma.lecturePoll.create({
-      data: { sessionId: req.params.id, question, optionsJson: JSON.stringify(options) },
-    });
-    return res.status(201).json(poll);
-  } catch (e) {
-    return res.status(500).json({ error: "Failed to create poll" });
-  }
-});
-
-// Close active poll
-app.delete("/api/lectures/:id/poll", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  const ownership = await requireLectureOwner(req.params.id, req.user.id).catch(() => "error");
-  if (ownership !== "ok") return res.status(ownership === "not_found" ? 404 : 403).json({ error: ownership === "not_found" ? "Lecture not found" : "Access denied." });
-  try {
-    await prisma.lecturePoll.updateMany({ where: { sessionId: req.params.id, isActive: true }, data: { isActive: false } });
-    return res.json({ ok: true });
-  } catch (e) {
-    return res.status(500).json({ error: "Failed to close poll" });
-  }
-});
-
-// Student responds to poll
-app.post("/api/lectures/:id/poll/:pollId/respond", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "student") return res.status(403).json({ error: "Students only" });
-  const { answer } = req.body;
-  if (!answer) return res.status(400).json({ error: "Answer required" });
-  try {
-    await prisma.pollResponse.upsert({
-      where: { pollId_studentId: { pollId: req.params.pollId, studentId: req.user.id } },
-      update: { answer, respondedAt: new Date() },
-      create: { pollId: req.params.pollId, studentId: req.user.id, studentName: req.user.fullName ?? req.user.name ?? "Student", answer },
-    });
-    return res.json({ ok: true });
-  } catch (e) {
-    return res.status(500).json({ error: "Failed to record poll response" });
-  }
-});
-
-// Advance slide (lecturer — must own session)
-app.post("/api/lectures/:id/slide", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  const ownership = await requireLectureOwner(req.params.id, req.user.id).catch(() => "error");
-  if (ownership !== "ok") return res.status(ownership === "not_found" ? 404 : 403).json({ error: ownership === "not_found" ? "Lecture not found" : "Access denied." });
-  const { slide } = req.body;
-  if (slide === undefined) return res.status(400).json({ error: "Slide index required" });
-  try {
-    const updated = await prisma.lectureSession.update({ where: { id: req.params.id }, data: { currentSlide: Number(slide) } });
-    return res.json(updated);
-  } catch (e) {
-    return res.status(500).json({ error: "Failed to update slide" });
-  }
-});
-
-// Upload file attachment (must own session)
-app.post("/api/lectures/:id/attachment", authenticateToken, upload.single("file"), async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  const ownership = await requireLectureOwner(req.params.id, req.user.id).catch(() => "error");
-  if (ownership !== "ok") return res.status(ownership === "not_found" ? 404 : 403).json({ error: ownership === "not_found" ? "Lecture not found" : "Access denied." });
-  if (!req.file) return res.status(400).json({ error: "File required" });
-  // Only allow safe document/image types for attachments
-  const allowed = ["application/pdf","image/jpeg","image/png","image/webp","text/plain",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-  if (!allowed.includes(req.file.mimetype)) {
-    return res.status(400).json({ error: "Unsupported file type." });
-  }
-  try {
-    const b64 = req.file.buffer.toString("base64");
-    const dataUrl = `data:${req.file.mimetype};base64,${b64}`;
-    await prisma.lectureSession.update({
-      where: { id: req.params.id },
-      data: { attachmentName: req.file.originalname, attachmentData: dataUrl },
-    });
-    return res.json({ ok: true, name: req.file.originalname });
-  } catch (e) {
-    return res.status(500).json({ error: "Failed to upload attachment" });
-  }
-});
-
-// Upload PPTX and convert slides to content
-async function extractPptxSlides(buffer: Buffer): Promise<string[]> {
-  const zip = await JSZip.loadAsync(buffer);
-  const slideFiles = Object.keys(zip.files)
-    .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
-    .sort((a, b) => {
-      const na = parseInt(a.match(/slide(\d+)/)?.[1] ?? "0");
-      const nb = parseInt(b.match(/slide(\d+)/)?.[1] ?? "0");
-      return na - nb;
-    });
-  const slides: string[] = [];
-  for (const slideFile of slideFiles) {
-    const xml = await zip.files[slideFile].async("string");
-    const texts: string[] = [];
-    for (const m of xml.matchAll(/<a:t[^>]*>(.*?)<\/a:t>/gs)) {
-      const t = m[1].replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim();
-      if (t) texts.push(t);
-    }
-    if (texts.length > 0) slides.push(texts.join("\n"));
-  }
-  return slides;
-}
-
-app.post("/api/lectures/parse-pptx", authenticateToken, upload.single("file"), async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  if (!req.file) return res.status(400).json({ error: "File required" });
-  const pptxMimes = ["application/vnd.openxmlformats-officedocument.presentationml.presentation"];
-  if (!pptxMimes.includes(req.file.mimetype)) return res.status(400).json({ error: "Only .pptx files are accepted." });
-  try {
-    const slides = await extractPptxSlides(req.file.buffer);
-    if (slides.length === 0) return res.status(400).json({ error: "No slide content found in file" });
-    return res.json({ ok: true, slideCount: slides.length, content: slides.join("\n\n---\n\n") });
-  } catch (e: any) {
-    console.error("PPTX parse error:", e);
-    return res.status(500).json({ error: "Failed to parse PPTX file" });
-  }
-});
-
-app.post("/api/lectures/:id/pptx", authenticateToken, upload.single("file"), async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  const ownership = await requireLectureOwner(req.params.id, req.user.id).catch(() => "error");
-  if (ownership !== "ok") return res.status(ownership === "not_found" ? 404 : 403).json({ error: ownership === "not_found" ? "Lecture not found" : "Access denied." });
-  if (!req.file) return res.status(400).json({ error: "File required" });
-  try {
-    const slides = await extractPptxSlides(req.file.buffer);
-    if (slides.length === 0) return res.status(400).json({ error: "No slide content found in file" });
-    const content = slides.join("\n\n---\n\n");
-    const updated = await prisma.lectureSession.update({
-      where: { id: req.params.id },
-      data: { content, currentSlide: 0 },
-    });
-    return res.json({ ok: true, slideCount: slides.length, session: updated });
-  } catch (e: any) {
-    console.error("PPTX parse error:", e);
-    return res.status(500).json({ error: "Failed to parse PPTX file" });
-  }
-});
-
-// AI summary of ended session
-app.post("/api/lectures/:id/summarize", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  if (!process.env.NVIDIA_API_KEY) return res.status(400).json({ error: "NVIDIA_API_KEY not configured" });
-  try {
-    const session = await prisma.lectureSession.findUnique({
-      where: { id: req.params.id },
-      include: { chats: { orderBy: { createdAt: "asc" } }, course: { select: { lecturerId: true } } },
-    });
-    if (!session) return res.status(404).json({ error: "Session not found" });
-    if (session.course.lecturerId !== req.user.id) return res.status(403).json({ error: "Access denied." });
-
-    const chatLog = session.chats.map((c: any) => `[${c.senderRole}] ${c.senderName}: ${c.message}`).join("\n");
-    const nvidia = getNvidiaClient();
-    const resp = await nvidia.chat.completions.create({
-      model: "meta/llama-3.1-70b-instruct",
-      messages: [{
-        role: "user",
-        content: `You are an academic assistant. Summarize the following live lecture session concisely in 3–5 bullet points covering the main topics taught and key discussion points from the chat.\n\nLECTURE TOPIC: ${session.topic}\n\nCONTENT:\n${session.content}\n\nCHAT LOG:\n${chatLog || "(no chat messages)"}\n\nProvide a clean, readable summary.`,
-      }],
-      temperature: 0.3,
-      max_tokens: 600,
-    });
-    const summary = resp.choices[0]?.message?.content ?? "Summary unavailable.";
-    await prisma.lectureSession.update({ where: { id: req.params.id }, data: { aiSummary: summary } });
-    return res.json({ summary });
-  } catch (e: any) {
-    console.error("Summarize error:", e);
-    return res.status(500).json({ error: "Failed to generate summary" });
-  }
-});
-
-// -------------------------------------------------------------
 // MANUAL SCORE ADJUSTMENT & MARKING API
 // -------------------------------------------------------------
 app.patch("/api/attempts/:id/score", authenticateToken, async (req: any, res) => {
@@ -2776,7 +2320,6 @@ app.post("/api/exams", authenticateToken, upload.single("file"), async (req: any
         availableUntil: availableUntil ? new Date(availableUntil) : undefined,
       },
     });
-    sendPushToAll("student", "New Exam Posted", `A new written exam "${title}" is now available. Open the app to check it.`, "/").catch(() => {});
     return res.status(201).json(exam);
   } catch (err) {
     console.error("Error creating exam:", err);
@@ -2888,6 +2431,17 @@ app.post("/api/exams/:id/submit", authenticateToken, async (req: any, res) => {
     });
     if (existing) return res.status(400).json({ error: "You have already submitted this exam" });
 
+    // Deduct 1 credit for exam submission
+    if (req.user.schoolId) {
+      const school = await prisma.school.findUnique({ where: { id: req.user.schoolId }, select: { creditBalance: true } });
+      if (!school || school.creditBalance < 1) {
+        return res.status(402).json({ error: "Insufficient exam credits. Please contact your school admin." });
+      }
+      await prisma.$transaction([
+        prisma.school.update({ where: { id: req.user.schoolId }, data: { creditBalance: { decrement: 1 } } }),
+        prisma.creditTransaction.create({ data: { schoolId: req.user.schoolId, amount: -1, type: "deduction", description: `Exam submission: ${req.params.id}` } }),
+      ]);
+    }
     const submission = await prisma.examSubmission.create({
       data: { examId: req.params.id, studentId: req.user.id, answersText },
     });
@@ -3045,7 +2599,6 @@ app.post("/api/assignments", authenticateToken, upload.single("file"), async (re
         dueDate: dueDate ? new Date(dueDate) : null,
       },
     });
-    sendPushToAll("student", "New Assignment", `A new assignment "${title}" has been posted. Open the app to view it.`, "/").catch(() => {});
     return res.status(201).json(assignment);
   } catch (err: any) {
     console.error("Error creating assignment:", err);
@@ -3347,85 +2900,6 @@ app.get("/api/user/avatar/:role/:id", authenticateToken, async (req: any, res) =
   } catch (err) {
     console.error("Error fetching avatar:", err);
     return res.status(500).json({ error: "Failed to fetch avatar" });
-  }
-});
-
-// -------------------------------------------------------------
-// PUSH NOTIFICATION SUBSCRIPTION
-// -------------------------------------------------------------
-
-app.get("/api/vapid-public-key", (_req, res) => {
-  res.json({ key: process.env.VAPID_PUBLIC_KEY || null });
-});
-
-app.post("/api/push/subscribe", authenticateToken, async (req: any, res) => {
-  const { endpoint, keys } = req.body;
-  if (!endpoint || !keys?.p256dh || !keys?.auth) return res.status(400).json({ error: "Invalid subscription" });
-  try {
-    await prisma.pushSubscription.upsert({
-      where: { endpoint },
-      update: { p256dh: keys.p256dh, auth: keys.auth, userId: req.user.id, userRole: req.user.role },
-      create: { userId: req.user.id, userRole: req.user.role, endpoint, p256dh: keys.p256dh, auth: keys.auth },
-    });
-    return res.json({ success: true });
-  } catch (err) {
-    return res.status(500).json({ error: "Failed to save subscription" });
-  }
-});
-
-app.delete("/api/push/unsubscribe", authenticateToken, async (req: any, res) => {
-  const { endpoint } = req.body;
-  if (!endpoint) return res.status(400).json({ error: "endpoint required" });
-  await prisma.pushSubscription.deleteMany({ where: { endpoint } }).catch(() => {});
-  return res.json({ success: true });
-});
-
-// -------------------------------------------------------------
-// ANNOUNCEMENTS
-// -------------------------------------------------------------
-
-app.get("/api/announcements", authenticateToken, async (_req, res) => {
-  try {
-    const items = await prisma.announcement.findMany({
-      include: {
-        lecturer: { select: { name: true } },
-        course:   { select: { code: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-    });
-    return res.json(items);
-  } catch (err) {
-    return res.status(500).json({ error: "Failed to fetch announcements" });
-  }
-});
-
-app.post("/api/announcements", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  const { title, body, courseId } = req.body;
-  if (!title?.trim() || !body?.trim()) return res.status(400).json({ error: "Title and body required" });
-  try {
-    const ann = await prisma.announcement.create({
-      data: { title: title.trim(), body: body.trim(), lecturerId: req.user.id, courseId: courseId || null },
-      include: { lecturer: { select: { name: true } }, course: { select: { code: true } } },
-    });
-    sendPushToAll("student", `📢 ${title}`, body, "/").catch(() => {});
-    return res.status(201).json(ann);
-  } catch (err) {
-    return res.status(500).json({ error: "Failed to create announcement" });
-  }
-});
-
-app.delete("/api/announcements/:id", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  try {
-    const ann = await prisma.announcement.findUnique({ where: { id: req.params.id } });
-    if (!ann) return res.status(404).json({ error: "Not found" });
-    if (ann.lecturerId !== req.user.id) return res.status(403).json({ error: "Access denied" });
-    await prisma.announcement.delete({ where: { id: req.params.id } });
-    return res.json({ success: true });
-  } catch (err) {
-    return res.status(500).json({ error: "Failed to delete announcement" });
   }
 });
 
@@ -3935,22 +3409,6 @@ app.get("/api/notifications", authenticateToken, async (req: any, res) => {
 // -------------------------------------------------------------
 // SERVER AND VITE DEV SETUP
 // -------------------------------------------------------------
-// WEBRTC SIGNALING — Socket.io
-// -------------------------------------------------------------
-// Ably token endpoint — lets the browser connect to Ably without exposing the API key
-app.get("/api/ably-token", authenticateToken, async (req: any, res) => {
-  if (!ablyRest) return res.status(503).json({ error: "Ably not configured. Add ABLY_API_KEY to environment variables." });
-  try {
-    const tokenRequest = await ablyRest.auth.createTokenRequest({
-      clientId: req.user.id,
-      capability: { "*": ["subscribe", "publish", "presence", "history"] },
-      ttl: 4 * 60 * 60 * 1000,
-    });
-    res.json(tokenRequest);
-  } catch {
-    res.status(500).json({ error: "Failed to generate Ably token" });
-  }
-});
 
 // -------------------------------------------------------------
 async function startServer() {
@@ -3977,119 +3435,6 @@ async function startServer() {
     console.log(`Server is running at http://localhost:${PORT}`);
   });
 }
-
-// -------------------------------------------------------------
-// DISCUSSION BOARD
-// -------------------------------------------------------------
-
-// List threads for a course (student filtered by dept+year, lecturer by ownership)
-app.get("/api/courses/:id/threads", authenticateToken, async (req: any, res) => {
-  try {
-    const threads = await prisma.discussionThread.findMany({
-      where: { courseId: req.params.id },
-      include: { _count: { select: { replies: true } } },
-      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
-    });
-    return res.json(threads);
-  } catch { return res.status(500).json({ error: "Failed to fetch threads" }); }
-});
-
-// Create thread
-app.post("/api/courses/:id/threads", authenticateToken, async (req: any, res) => {
-  const { title, body } = req.body;
-  if (!title?.trim() || !body?.trim()) return res.status(400).json({ error: "Title and body are required" });
-  try {
-    const authorName = req.user.role === "lecturer"
-      ? (await prisma.lecturer.findUnique({ where: { id: req.user.id }, select: { name: true } }))?.name ?? "Lecturer"
-      : (await prisma.student.findUnique({ where: { id: req.user.id }, select: { fullName: true } }))?.fullName ?? "Student";
-    const thread = await prisma.discussionThread.create({
-      data: { courseId: req.params.id, authorId: req.user.id, authorRole: req.user.role, authorName, title: title.trim(), body: body.trim() },
-    });
-    return res.status(201).json(thread);
-  } catch { return res.status(500).json({ error: "Failed to create thread" }); }
-});
-
-// Get single thread with replies
-app.get("/api/threads/:id", authenticateToken, async (req: any, res) => {
-  try {
-    const thread = await prisma.discussionThread.findUnique({
-      where: { id: req.params.id },
-      include: { replies: { orderBy: { createdAt: "asc" } } },
-    });
-    if (!thread) return res.status(404).json({ error: "Thread not found" });
-    return res.json(thread);
-  } catch { return res.status(500).json({ error: "Failed to fetch thread" }); }
-});
-
-// Post reply
-app.post("/api/threads/:id/replies", authenticateToken, async (req: any, res) => {
-  const { body } = req.body;
-  if (!body?.trim()) return res.status(400).json({ error: "Reply body is required" });
-  try {
-    const thread = await prisma.discussionThread.findUnique({ where: { id: req.params.id } });
-    if (!thread) return res.status(404).json({ error: "Thread not found" });
-    const authorName = req.user.role === "lecturer"
-      ? (await prisma.lecturer.findUnique({ where: { id: req.user.id }, select: { name: true } }))?.name ?? "Lecturer"
-      : (await prisma.student.findUnique({ where: { id: req.user.id }, select: { fullName: true } }))?.fullName ?? "Student";
-    const reply = await prisma.discussionReply.create({
-      data: { threadId: req.params.id, authorId: req.user.id, authorRole: req.user.role, authorName, body: body.trim() },
-    });
-    return res.status(201).json(reply);
-  } catch { return res.status(500).json({ error: "Failed to post reply" }); }
-});
-
-// Pin/unpin thread (lecturer only)
-app.patch("/api/threads/:id/pin", authenticateToken, async (req: any, res) => {
-  if (req.user.role !== "lecturer") return res.status(403).json({ error: "Lecturers only" });
-  try {
-    const thread = await prisma.discussionThread.findUnique({ where: { id: req.params.id }, include: { course: { select: { lecturerId: true } } } });
-    if (!thread) return res.status(404).json({ error: "Thread not found" });
-    if (thread.course.lecturerId !== req.user.id) return res.status(403).json({ error: "Access denied." });
-    const updated = await prisma.discussionThread.update({ where: { id: req.params.id }, data: { isPinned: !thread.isPinned } });
-    return res.json(updated);
-  } catch { return res.status(500).json({ error: "Failed to update thread" }); }
-});
-
-// Delete thread or reply (own posts, or lecturer for any)
-app.delete("/api/threads/:id", authenticateToken, async (req: any, res) => {
-  try {
-    const thread = await prisma.discussionThread.findUnique({ where: { id: req.params.id } });
-    if (!thread) return res.status(404).json({ error: "Thread not found" });
-    if (thread.authorId !== req.user.id && req.user.role !== "lecturer") return res.status(403).json({ error: "Access denied" });
-    await prisma.discussionThread.delete({ where: { id: req.params.id } });
-    return res.json({ ok: true });
-  } catch { return res.status(500).json({ error: "Failed to delete thread" }); }
-});
-
-// List all threads across courses the user can access (for dashboard discussions tab)
-app.get("/api/discussions", authenticateToken, async (req: any, res) => {
-  try {
-    let courseIds: string[] = [];
-    if (req.user.role === "student") {
-      const { depts, year } = await getStudentFilter(req.user.id);
-      const courses = await prisma.course.findMany({
-        where: {
-          AND: [
-            { OR: [{ departmentId: null }, { department: { name: { in: depts } } }] },
-            { OR: [{ targetYear: null }, { targetYear: year }] },
-          ],
-        },
-        select: { id: true },
-      });
-      courseIds = courses.map(c => c.id);
-    } else {
-      const courses = await prisma.course.findMany({ where: { lecturerId: req.user.id }, select: { id: true } });
-      courseIds = courses.map(c => c.id);
-    }
-    const threads = await prisma.discussionThread.findMany({
-      where: { courseId: { in: courseIds } },
-      include: { course: { select: { code: true, title: true } }, _count: { select: { replies: true } } },
-      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
-      take: 100,
-    });
-    return res.json(threads);
-  } catch { return res.status(500).json({ error: "Failed to fetch discussions" }); }
-});
 
 // -------------------------------------------------------------
 // QUESTION BANK
@@ -4148,13 +3493,13 @@ app.get("/api/school-admin/overview", authenticateToken, requireSchoolAdmin, asy
   try {
     const schoolId = req.user.schoolId;
     const [school, studentCount, lecturerCount, courseCount, examCount] = await Promise.all([
-      prisma.school.findUnique({ where: { id: schoolId }, select: { id: true, name: true, code: true } }),
+      prisma.school.findUnique({ where: { id: schoolId }, select: { id: true, name: true, code: true, creditBalance: true } }),
       prisma.student.count({ where: { schoolId } }),
       prisma.lecturer.count({ where: { schoolId } }),
       prisma.course.count({ where: { schoolId } }),
       prisma.exam.count({ where: { course: { schoolId } } }),
     ]);
-    return res.json({ school, studentCount, lecturerCount, courseCount, examCount });
+    return res.json({ school, studentCount, lecturerCount, courseCount, examCount, creditBalance: school?.creditBalance ?? 0 });
   } catch { return res.status(500).json({ error: "Failed to fetch overview" }); }
 });
 
