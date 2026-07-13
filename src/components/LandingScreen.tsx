@@ -196,10 +196,21 @@ export default function LandingScreen({
     try {
       const res  = await fetch("/api/auth/lecturer-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: lecturerEmail, password: lecturerPassword }) });
       const data = await apiJSON(res);
-      if (!res.ok) throw new Error(data.error || "Lecturer verification failed");
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 404) {
+          setError("Email or password is incorrect. Check your details and try again.");
+        } else if (res.status === 403) {
+          setError("Your account is not yet activated. Contact your school admin.");
+        } else if (res.status === 429) {
+          setError("Too many attempts. Please wait a moment before trying again.");
+        } else {
+          setError("Something went wrong. Please try again.");
+        }
+        setLoading(false); return;
+      }
       setSuccess("Authorization granted!");
       setTimeout(() => onLoginSuccess(data.token, data.user), 500);
-    } catch (err: any) { setError(err.message); } finally { setLoading(false); }
+    } catch { setError("Something went wrong. Please try again."); } finally { setLoading(false); }
   };
 
   const handleLecturerRegister = async (e: React.FormEvent) => {
@@ -207,10 +218,17 @@ export default function LandingScreen({
     try {
       const res  = await fetch("/api/auth/lecturer-register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: regLecturerName, email: regLecturerEmail, password: regLecturerPassword, schoolId: selectedSchoolId }) });
       const data = await apiJSON(res);
-      if (!res.ok) throw new Error(data.error || "Lecturer registration failed");
-      setSuccess("Lecturer account created!");
+      if (!res.ok) {
+        if (res.status === 409) {
+          setError("An account with this email already exists. Try signing in instead.");
+        } else {
+          setError(data.error || "Registration failed. Please check your details and try again.");
+        }
+        setLoading(false); return;
+      }
+      setSuccess("Staff account created!");
       setTimeout(() => onLoginSuccess(data.token, data.user), 1000);
-    } catch (err: any) { setError(err.message); } finally { setLoading(false); }
+    } catch { setError("Something went wrong. Please try again."); } finally { setLoading(false); }
   };
 
   const handleGetSecurityQuestion = async (e: React.FormEvent) => {
@@ -311,8 +329,8 @@ export default function LandingScreen({
     },
     {
       id:       "lecturer" as const,
-      label:    "Lecturer",
-      sub:      "Staff / Academic",
+      label:    "Staff",
+      sub:      "Teacher / Academic",
       icon:     GraduationCap,
       gradient: "linear-gradient(145deg, #1e3a5f 0%, #2563eb 100%)",
       ring:     "rgba(96,165,250,0.50)",
@@ -854,12 +872,12 @@ export default function LandingScreen({
                             </motion.form>
                           )}
 
-                          {/* LECTURER LOGIN */}
+                          {/* STAFF LOGIN */}
                           {selectedUser === "lecturer" && mode === "login" && (
                             <motion.form key="l-login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }} onSubmit={handleLecturerLogin} className="space-y-4">
                               <motion.div initial={{ opacity: 0, y: 10, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ delay: 0.05, type: "spring", stiffness: 500, damping: 32 }}>
                                 <label className={lbl}>Email Address</label>
-                                <input id="login-lecturer-email" type="email" required value={lecturerEmail} onChange={e => setLecturerEmail(e.target.value)} placeholder="lecturer@school.edu.ng" className={inp} autoFocus />
+                                <input id="login-lecturer-email" type="email" required value={lecturerEmail} onChange={e => setLecturerEmail(e.target.value)} placeholder="staff@school.edu.ng" className={inp} autoFocus />
                               </motion.div>
                               <motion.div initial={{ opacity: 0, y: 10, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ delay: 0.10, type: "spring", stiffness: 500, damping: 32 }}>
                                 <label className={lbl}>Password</label>
@@ -870,16 +888,41 @@ export default function LandingScreen({
                                   {loading ? "Signing in…" : "Sign In"} {!loading && <ArrowRight className="h-4 w-4" />}
                                 </motion.button>
                               </motion.div>
-                              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.22, duration: 0.3 }}>
+                              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.22, duration: 0.3 }} className="flex items-center justify-between">
                                 <button type="button" onClick={() => { setMode("register"); setError(null); }} className={link}>New staff? Register</button>
+                                <button type="button" onClick={() => { setMode("forgot"); setError(null); }} className="text-[13px] text-white/40 hover:text-white/70 transition-colors cursor-pointer">Forgot password?</button>
                               </motion.div>
                             </motion.form>
                           )}
 
-                          {/* LECTURER REGISTER */}
+                          {/* STAFF FORGOT PASSWORD */}
+                          {selectedUser === "lecturer" && mode === "forgot" && (
+                            <motion.div key="l-forgot" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.2 }} className="space-y-4">
+                              <div className="flex items-center gap-2.5">
+                                <button type="button" onClick={() => { setMode("login"); setError(null); }}
+                                  className="flex items-center justify-center w-8 h-8 rounded-full bg-white/[0.08] hover:bg-white/[0.14] text-white/60 transition cursor-pointer">
+                                  <ArrowLeft className="h-3.5 w-3.5" />
+                                </button>
+                                <span className="text-white/70 text-[12px] font-semibold flex items-center gap-1.5">
+                                  <KeyRound className="h-3.5 w-3.5 text-blue-400" /> Password Recovery
+                                </span>
+                              </div>
+                              <div className="bg-blue-400/10 border border-blue-400/20 rounded-xl p-4 space-y-2">
+                                <p className="text-[13px] text-blue-300 font-semibold">Staff accounts are managed by your school admin.</p>
+                                <p className="text-[12px] text-white/50 leading-relaxed">
+                                  To reset your password, contact your school administrator or send an email to <span className="text-blue-400 font-medium">support@mmuta.ng</span> with your name and school.
+                                </p>
+                              </div>
+                              <button type="button" onClick={() => { setMode("login"); setError(null); }} className={link + " block text-center w-full"}>
+                                Back to sign in
+                              </button>
+                            </motion.div>
+                          )}
+
+                          {/* STAFF REGISTER */}
                           {selectedUser === "lecturer" && mode === "register" && (
                             <motion.form key="l-reg" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} onSubmit={handleLecturerRegister} className="space-y-4">
-                              <p className="text-[10.5px] font-bold text-blue-400/80 uppercase tracking-[0.16em] flex items-center gap-1.5"><GraduationCap className="h-3 w-3" /> Staff Registration</p>
+                              <p className="text-[10.5px] font-bold text-blue-400/80 uppercase tracking-[0.16em] flex items-center gap-1.5"><GraduationCap className="h-3 w-3" /> New Staff Registration</p>
                               <div><label className={lbl}>School / Institution</label>
                                 <select required value={selectedSchoolId} onChange={e => setSelectedSchoolId(e.target.value)} className={inp + " [&>option]:bg-slate-900"}>
                                   <option value="">Select your school…</option>

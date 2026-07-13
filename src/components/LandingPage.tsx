@@ -293,6 +293,205 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         </div>
       </section>
 
+      {/* ── Product proof ── */}
+      <section className="py-24 max-w-7xl mx-auto px-5 sm:px-8">
+        <FadeUp className="text-center mb-16">
+          <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#1a7fe8] mb-4">Product</p>
+          <h2 className="text-[36px] sm:text-[52px] font-black tracking-tight leading-[1.05] mb-5">
+            See it in action
+          </h2>
+          <p className="text-[16px] text-white/40 max-w-xl mx-auto leading-relaxed">
+            If a proprietor can't see it, it doesn't exist. Here's exactly what students and staff see.
+          </p>
+        </FadeUp>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+
+          {/* Screen 1: Student taking an exam */}
+          <FadeUp delay={0.05} className="lg:col-span-2">
+            <div className="rounded-[20px] overflow-hidden border border-white/[0.07]" style={{ background: "#0d1117" }}>
+              {/* browser chrome */}
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.05]" style={{ background: "#161b22" }}>
+                <span className="h-2.5 w-2.5 rounded-full bg-red-500/60" />
+                <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
+                <span className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
+                <span className="ml-3 text-[11px] text-white/25 font-mono">Mmuta Exam — MTH 301</span>
+              </div>
+              {/* exam screen */}
+              <div className="p-5 space-y-4">
+                {/* header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] text-white/35 font-semibold uppercase tracking-wider">MTH 301 · Calculus</div>
+                    <div className="text-[13px] text-white/60 mt-0.5">Question 7 of 30</div>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-500/30" style={{ background: "rgba(245,158,11,0.1)" }}>
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    <span className="text-amber-300 text-[13px] font-bold font-mono">45:23</span>
+                  </div>
+                </div>
+                {/* progress bar */}
+                <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div className="h-full rounded-full w-[23%]" style={{ background: "linear-gradient(90deg, #1a7fe8, #7c3aed)" }} />
+                </div>
+                {/* question */}
+                <div className="rounded-[14px] border border-white/[0.07] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+                  <p className="text-[14px] text-white/80 leading-relaxed font-medium">
+                    Which of the following is the derivative of <span className="font-mono text-[#1a7fe8]">f(x) = x³ + 2x² - 5x + 3</span>?
+                  </p>
+                </div>
+                {/* options */}
+                <div className="space-y-2">
+                  {[
+                    { letter: "A", text: "3x² + 4x - 5", selected: true },
+                    { letter: "B", text: "x² + 4x", selected: false },
+                    { letter: "C", text: "3x² - 5", selected: false },
+                    { letter: "D", text: "3x + 4x - 5", selected: false },
+                  ].map(opt => (
+                    <div key={opt.letter}
+                      className="flex items-center gap-3 px-4 py-3 rounded-[12px] border transition-all"
+                      style={opt.selected
+                        ? { background: "rgba(26,127,232,0.12)", borderColor: "rgba(26,127,232,0.4)", color: "#fff" }
+                        : { background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.55)" }
+                      }>
+                      <span className="text-[11px] font-black w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={opt.selected
+                          ? { background: "rgba(26,127,232,0.35)", color: "#60a5fa" }
+                          : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }
+                        }>
+                        {opt.letter}
+                      </span>
+                      <span className="text-[13px] font-mono">{opt.text}</span>
+                      {opt.selected && <CheckCircle className="h-3.5 w-3.5 text-[#1a7fe8] ml-auto flex-shrink-0" />}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button className="flex-1 py-2.5 rounded-[10px] text-[13px] font-semibold border border-white/[0.08] text-white/40 cursor-default">Previous</button>
+                  <button className="flex-1 py-2.5 rounded-[10px] text-[13px] font-semibold text-white cursor-default"
+                    style={{ background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>Next Question</button>
+                </div>
+              </div>
+              <div className="px-5 pb-4 text-center text-[11px] text-white/20">Answers auto-saved every 5 seconds</div>
+            </div>
+          </FadeUp>
+
+          {/* Screen 2: Instant results */}
+          <FadeUp delay={0.12}>
+            <div className="rounded-[20px] overflow-hidden border border-white/[0.07]" style={{ background: "#0d1117" }}>
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.05]" style={{ background: "#161b22" }}>
+                <span className="h-2.5 w-2.5 rounded-full bg-red-500/60" />
+                <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
+                <span className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
+                <span className="ml-3 text-[11px] text-white/25 font-mono">Results</span>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="text-center py-3">
+                  <div className="text-[11px] text-white/35 font-semibold uppercase tracking-wider mb-2">MTH 301 · Calculus</div>
+                  <div className="text-[64px] font-black leading-none mb-1"
+                    style={{ WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text", backgroundImage: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>
+                    84
+                  </div>
+                  <div className="text-white/40 text-[14px] font-medium mb-3">out of 100</div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold"
+                    style={{ background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.25)" }}>
+                    <CheckCircle className="h-3.5 w-3.5" /> B+ · Distinction
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[{ label: "Correct", val: "25/30", color: "#22c55e" }, { label: "Time", val: "38 min", color: "#1a7fe8" }].map(s => (
+                    <div key={s.label} className="rounded-[12px] p-3 text-center border border-white/[0.06]" style={{ background: "rgba(255,255,255,0.02)" }}>
+                      <div className="text-[18px] font-black" style={{ color: s.color }}>{s.val}</div>
+                      <div className="text-[10px] text-white/35 font-semibold uppercase tracking-wider mt-0.5">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <div className="text-[10px] text-white/30 font-bold uppercase tracking-wider mb-2">Class Leaderboard</div>
+                  {[
+                    { rank: 1, name: "Ada Okonkwo", score: 96 },
+                    { rank: 2, name: "Chidi Eze", score: 91 },
+                    { rank: 3, name: "You", score: 84, me: true },
+                    { rank: 4, name: "Ngozi Nwosu", score: 79 },
+                  ].map(r => (
+                    <div key={r.rank} className="flex items-center gap-2.5 px-3 py-2 rounded-[10px]"
+                      style={r.me ? { background: "rgba(26,127,232,0.08)", border: "1px solid rgba(26,127,232,0.2)" } : {}}>
+                      <span className="text-[11px] font-black text-white/30 w-4">{r.rank}</span>
+                      <span className={`flex-1 text-[12.5px] font-semibold ${r.me ? "text-[#60a5fa]" : "text-white/55"}`}>{r.name}</span>
+                      <span className={`text-[12.5px] font-bold ${r.me ? "text-[#1a7fe8]" : "text-white/40"}`}>{r.score}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </FadeUp>
+
+          {/* Screen 3: Teacher creating an exam */}
+          <FadeUp delay={0.18} className="lg:col-span-3">
+            <div className="rounded-[20px] overflow-hidden border border-white/[0.07]" style={{ background: "#0d1117" }}>
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.05]" style={{ background: "#161b22" }}>
+                <span className="h-2.5 w-2.5 rounded-full bg-red-500/60" />
+                <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
+                <span className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
+                <span className="ml-3 text-[11px] text-white/25 font-mono">Staff Dashboard — Exam Management</span>
+              </div>
+              <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Sidebar */}
+                <div className="space-y-1">
+                  {[
+                    { label: "Dashboard", active: false },
+                    { label: "Exams", active: true },
+                    { label: "Assignments", active: false },
+                    { label: "Students", active: false },
+                    { label: "Results", active: false },
+                  ].map(item => (
+                    <div key={item.label} className="px-3 py-2 rounded-[8px] text-[13px] font-medium cursor-default"
+                      style={item.active
+                        ? { background: "rgba(26,127,232,0.12)", color: "#60a5fa", borderLeft: "2px solid #1a7fe8" }
+                        : { color: "rgba(255,255,255,0.35)" }
+                      }>
+                      {item.label}
+                    </div>
+                  ))}
+                </div>
+                {/* Main content */}
+                <div className="sm:col-span-2 space-y-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-[15px] font-bold text-white/80">MTH 301 · Exams</div>
+                    <div className="px-3 py-1.5 rounded-full text-[12px] font-bold text-white cursor-default"
+                      style={{ background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>
+                      + Create Exam
+                    </div>
+                  </div>
+                  {[
+                    { name: "Mid-Semester Exam", date: "15 Mar 2026", students: 142, status: "Completed", score: "Avg: 71%" },
+                    { name: "Quiz 3 — Integrals", date: "28 Feb 2026", students: 138, status: "Completed", score: "Avg: 68%" },
+                    { name: "Final Exam", date: "20 Apr 2026", students: 142, status: "Upcoming", score: "" },
+                  ].map(exam => (
+                    <div key={exam.name} className="flex items-center gap-3 p-3 rounded-[12px] border border-white/[0.06]"
+                      style={{ background: "rgba(255,255,255,0.02)" }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-semibold text-white/75 truncate">{exam.name}</div>
+                        <div className="text-[11px] text-white/30 mt-0.5">{exam.date} · {exam.students} students</div>
+                      </div>
+                      {exam.score && <span className="text-[11px] font-bold text-[#1a7fe8]">{exam.score}</span>}
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0"
+                        style={exam.status === "Completed"
+                          ? { background: "rgba(34,197,94,0.12)", color: "#4ade80" }
+                          : { background: "rgba(234,179,8,0.12)", color: "#facc15" }
+                        }>
+                        {exam.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </FadeUp>
+
+        </div>
+      </section>
+
       {/* ── Platform features ── */}
       <section id="platform" className="py-24 max-w-7xl mx-auto px-5 sm:px-8">
         <FadeUp className="text-center mb-20">
