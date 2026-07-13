@@ -1,14 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Sphere, MeshDistortMaterial } from "@react-three/drei";
 import { motion, useScroll, useTransform, useInView } from "motion/react";
 import Lenis from "@studio-freight/lenis";
 import {
   Shield, Zap, BarChart2, CheckCircle, ArrowRight,
   Menu, X, BookOpen, Users, Award, ChevronDown,
-  WifiOff, Battery, RotateCcw, MessageCircle,
+  WifiOff, Battery, RotateCcw, MessageCircle, Eye,
 } from "lucide-react";
-import * as THREE from "three";
 
 interface LandingPageProps {
   onGetStarted?: () => void;
@@ -16,27 +13,84 @@ interface LandingPageProps {
 
 const WHATSAPP_NUMBER = "2348000000000"; // replace with real number before launch
 
-// ── 3D floating orb ──────────────────────────────────────────────────────────
-function FloatingOrb() {
-  const meshRef = useRef<THREE.Mesh>(null!);
-  useFrame(({ clock }) => {
-    meshRef.current.rotation.x = clock.getElapsedTime() * 0.12;
-    meshRef.current.rotation.y = clock.getElapsedTime() * 0.18;
-    meshRef.current.position.y = Math.sin(clock.getElapsedTime() * 0.6) * 0.12;
-  });
+// ── Hero product window mockup ────────────────────────────────────────────────
+function HeroExamMockup() {
   return (
-    <Sphere ref={meshRef} args={[1, 80, 80]}>
-      <MeshDistortMaterial
-        color="#1a7fe8"
-        attach="material"
-        distort={0.38}
-        speed={2.2}
-        roughness={0}
-        metalness={0.1}
-        opacity={0.88}
-        transparent
-      />
-    </Sphere>
+    <motion.div
+      animate={{ y: [0, -10, 0] }}
+      transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+      className="rounded-[20px] overflow-hidden border border-white/[0.12] shadow-2xl"
+      style={{ background: "#0d1117", boxShadow: "0 40px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)" }}>
+      {/* browser bar */}
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.06]" style={{ background: "#161b22" }}>
+        <span className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
+        <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/70" />
+        <span className="h-2.5 w-2.5 rounded-full bg-green-500/70" />
+        <div className="ml-2 flex-1 rounded-md px-3 py-1 text-[11px] font-mono text-white/20" style={{ background: "rgba(255,255,255,0.04)" }}>
+          mmuta.app/exam/mth-301
+        </div>
+      </div>
+      <div className="p-4 space-y-3">
+        {/* exam header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[10px] text-white/30 font-semibold uppercase tracking-wider">MTH 301 · Calculus I</div>
+            <div className="text-[12px] text-white/55 mt-0.5">Question 7 of 30</div>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-amber-500/30" style={{ background: "rgba(245,158,11,0.08)" }}>
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-amber-300 text-[12px] font-bold font-mono">45:23</span>
+          </div>
+        </div>
+        {/* progress */}
+        <div className="h-1 rounded-full bg-white/[0.05] overflow-hidden">
+          <div className="h-full rounded-full w-[23%]" style={{ background: "linear-gradient(90deg, #1a7fe8, #7c3aed)" }} />
+        </div>
+        {/* question */}
+        <div className="rounded-[10px] border border-white/[0.06] p-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <p className="text-[12px] text-white/70 leading-relaxed">
+            Find the derivative of <span className="font-mono text-[#60a5fa]">f(x) = x³ + 2x² - 5x</span>
+          </p>
+        </div>
+        {/* options */}
+        <div className="space-y-1.5">
+          {[
+            { l: "A", t: "3x² + 4x - 5", sel: true },
+            { l: "B", t: "x² + 4x", sel: false },
+            { l: "C", t: "3x² - 5", sel: false },
+            { l: "D", t: "3x + 4x - 5", sel: false },
+          ].map(o => (
+            <div key={o.l}
+              className="flex items-center gap-2 px-3 py-2 rounded-[8px] border text-[12px]"
+              style={o.sel
+                ? { background: "rgba(26,127,232,0.12)", borderColor: "rgba(26,127,232,0.35)", color: "#fff" }
+                : { background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.45)" }
+              }>
+              <span className="text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
+                style={o.sel ? { background: "rgba(26,127,232,0.3)", color: "#60a5fa" } : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.35)" }}>
+                {o.l}
+              </span>
+              <span className="font-mono flex-1">{o.t}</span>
+              {o.sel && <CheckCircle className="h-3 w-3 text-[#1a7fe8]" />}
+            </div>
+          ))}
+        </div>
+        {/* footer */}
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-[10px] text-white/20 flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+            Auto-saved
+          </span>
+          <div className="flex gap-1.5">
+            <div className="px-3 py-1.5 rounded-[7px] text-[11px] font-semibold border border-white/[0.07] text-white/35 cursor-default">Prev</div>
+            <div className="px-3 py-1.5 rounded-[7px] text-[11px] font-semibold text-white cursor-default"
+              style={{ background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>
+              Next
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -55,24 +109,6 @@ function FadeUp({ children, delay = 0, className = "" }: { children: React.React
       {children}
     </motion.div>
   );
-}
-
-// ── Stat counter ──────────────────────────────────────────────────────────────
-function StatNumber({ to, suffix = "" }: { to: number; suffix?: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true });
-  useEffect(() => {
-    if (!inView || !ref.current) return;
-    let start = 0;
-    const step = to / 60;
-    const tick = () => {
-      start = Math.min(start + step, to);
-      if (ref.current) ref.current.textContent = Math.floor(start).toLocaleString() + suffix;
-      if (start < to) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, [inView, to, suffix]);
-  return <span ref={ref}>0{suffix}</span>;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -97,7 +133,10 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
   };
 
   const bookDemo = () => {
-    document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" });
+    window.open(
+      `https://wa.me/${WHATSAPP_NUMBER}?text=Hello%2C%20I%27d%20like%20a%20demo%20of%20Mmuta%20for%20my%20school.`,
+      "_blank", "noopener,noreferrer"
+    );
   };
 
   const navLinks = [
@@ -197,15 +236,10 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full opacity-[0.07] blur-[120px] pointer-events-none"
           style={{ background: "radial-gradient(circle, #1a7fe8 0%, #7c3aed 60%, transparent 100%)" }} />
 
-        {/* 3D Orb */}
+        {/* Hero product mockup */}
         <motion.div style={{ y: heroY, opacity: heroOpacity }}
-          className="absolute right-[5%] top-[12%] w-[280px] h-[280px] sm:w-[480px] sm:h-[480px] opacity-75 hidden sm:block">
-          <Canvas camera={{ position: [0, 0, 3], fov: 45 }} gl={{ antialias: true, alpha: true }}>
-            <ambientLight intensity={0.6} />
-            <directionalLight position={[5, 5, 5]} intensity={1.2} color="#7c3aed" />
-            <pointLight position={[-5, -5, -5]} intensity={0.8} color="#1a7fe8" />
-            <FloatingOrb />
-          </Canvas>
+          className="absolute right-[3%] top-[10%] w-[380px] hidden lg:block z-10">
+          <HeroExamMockup />
         </motion.div>
 
         <motion.div style={{ y: heroY, opacity: heroOpacity }}
@@ -219,12 +253,11 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
           <motion.h1
             initial={{ opacity: 0, y: 32 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.2 }}
-            className="text-[48px] sm:text-[68px] lg:text-[84px] font-black leading-[0.95] tracking-[-0.03em] mb-8 max-w-3xl">
-            Run your school's exams, grading,{" "}
+            className="text-[48px] sm:text-[68px] lg:text-[80px] font-black leading-[0.95] tracking-[-0.03em] mb-8 max-w-2xl">
+            Run your school's exams, grading, and results in{" "}
             <span style={{ WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text", backgroundImage: "linear-gradient(135deg, #1a7fe8 0%, #7c3aed 50%, #06b6d4 100%)" }}>
-              and results
-            </span>{" "}
-            in one platform.
+              one platform.
+            </span>
           </motion.h1>
 
           <motion.p
@@ -273,21 +306,42 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         </div>
       </div>
 
-      {/* ── Stats ── */}
-      <section className="py-24 max-w-7xl mx-auto px-5 sm:px-8">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/[0.05] rounded-[24px] overflow-hidden border border-white/[0.05]">
+      {/* ── Honest claims strip ── */}
+      <section className="py-20 max-w-7xl mx-auto px-5 sm:px-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/[0.04] rounded-[24px] overflow-hidden border border-white/[0.05]">
           {[
-            { to: 12000, suffix: "+", label: "Exams conducted" },
-            { to: 40, suffix: "+", label: "Schools onboarded" },
-            { to: 98, suffix: "%", label: "Grading accuracy" },
-            { to: 4, suffix: " min", label: "Avg. time to results" },
-          ].map(({ to, suffix, label }) => (
-            <FadeUp key={label} className="bg-[#03060d] p-8 sm:p-10 text-center">
-              <div className="text-[40px] sm:text-[52px] font-black tracking-tight mb-1"
-                style={{ WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text", backgroundImage: "linear-gradient(135deg, #fff 40%, rgba(255,255,255,0.4))" }}>
-                <StatNumber to={to} suffix={suffix} />
+            {
+              icon: Award,
+              color: "#1a7fe8",
+              heading: "Built by CBT operators",
+              body: "We designed and ran physical computer-based test centers before writing a line of this platform.",
+            },
+            {
+              icon: WifiOff,
+              color: "#f59e0b",
+              heading: "Works through outages",
+              body: "Answers saved every second locally. Students resume exactly where they stopped after any disconnection.",
+            },
+            {
+              icon: Zap,
+              color: "#7c3aed",
+              heading: "Results in minutes",
+              body: "Not days. Not weeks. The moment a student submits, their score is ready.",
+            },
+            {
+              icon: Eye,
+              color: "#22c55e",
+              heading: "AI grading + teacher override",
+              body: "Every AI-marked essay can be reviewed and adjusted by the teacher before results are released.",
+            },
+          ].map(({ icon: Icon, color, heading, body }) => (
+            <FadeUp key={heading} className="bg-[#03060d] p-7 sm:p-8">
+              <div className="w-9 h-9 rounded-[10px] flex items-center justify-center mb-4 flex-shrink-0"
+                style={{ background: `${color}15` }}>
+                <Icon className="h-4 w-4" style={{ color }} />
               </div>
-              <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/35">{label}</p>
+              <p className="text-[15px] font-bold text-white mb-1.5 leading-snug">{heading}</p>
+              <p className="text-[13px] text-white/45 leading-relaxed">{body}</p>
             </FadeUp>
           ))}
         </div>
@@ -638,6 +692,72 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         </div>
       </section>
 
+      {/* ── Why Mmuta / origin story ── */}
+      <section className="py-24 border-y border-white/[0.05]">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <FadeUp>
+              <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#1a7fe8] mb-5">Why Mmuta</p>
+              <h2 className="text-[34px] sm:text-[46px] font-black tracking-tight leading-[1.05] mb-6">
+                We didn't just build exam software.<br />
+                <span style={{ WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text", backgroundImage: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>
+                  We ran the exam halls.
+                </span>
+              </h2>
+              <p className="text-[16px] text-white/50 leading-relaxed mb-5">
+                Before Mmuta existed as software, we built and operated physical CBT centers. We know what exam day looks like at 7 AM when the generator dies, when NEPA takes light at 9:45 AM, and when a student swears he submitted but the system shows nothing.
+              </p>
+              <p className="text-[16px] text-white/50 leading-relaxed mb-8">
+                Mmuta is everything we learned from running those halls — put into a platform any school can use without needing IT staff, a server room, or a dedicated CBT building.
+              </p>
+              <div className="flex flex-col gap-3">
+                {[
+                  "Offline-first: we knew NEPA would cut power",
+                  "Auto-save: because students will blame the system",
+                  "PIN exams: because not every student has an email",
+                  "Teacher override: because AI will make mistakes",
+                ].map(point => (
+                  <div key={point} className="flex items-start gap-3">
+                    <CheckCircle className="h-4 w-4 text-[#1a7fe8] flex-shrink-0 mt-0.5" />
+                    <span className="text-[14px] text-white/60">{point}</span>
+                  </div>
+                ))}
+              </div>
+            </FadeUp>
+
+            <FadeUp delay={0.1}>
+              <div className="rounded-[24px] border border-white/[0.07] p-8 space-y-6" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/30">From the team</p>
+                <blockquote className="text-[18px] sm:text-[22px] font-semibold leading-[1.4] text-white/80">
+                  "Every Nigerian school deserves exam infrastructure as good as the best private universities — without the ₦50 million price tag."
+                </blockquote>
+                <div className="flex items-center gap-3 pt-2 border-t border-white/[0.06]">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-[14px]"
+                    style={{ background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>
+                    M
+                  </div>
+                  <div>
+                    <div className="text-[14px] font-bold text-white">Mmuta Team</div>
+                    <div className="text-[12px] text-white/35">Engineers &amp; former CBT operators</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  {[
+                    { val: "Pilot school", label: "spot still open — talk to us" },
+                    { val: "Day 1", label: "ready to onboard your school" },
+                  ].map(({ val, label }) => (
+                    <div key={label} className="rounded-[14px] border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+                      <div className="text-[16px] font-black text-white mb-0.5">{val}</div>
+                      <div className="text-[11px] text-white/35 leading-tight">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </FadeUp>
+          </div>
+        </div>
+      </section>
+
       {/* ── Pricing ── */}
       <section id="schools" className="py-24 border-t border-white/[0.05]">
         <div className="max-w-7xl mx-auto px-5 sm:px-8">
@@ -651,80 +771,90 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             </p>
           </FadeUp>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto mb-16">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto mb-5">
             {[
               {
                 name: "Starter",
                 credits: "500",
                 price: "120,000",
-                students: "Up to 200 students",
-                features: ["500 exam attempts", "All exam types", "AI grading", "Email support"],
+                features: ["500 exam attempts", "All exam types", "MCQ + written", "AI grading with teacher review", "Email support"],
                 highlight: false,
               },
               {
                 name: "School",
                 credits: "2,000",
                 price: "350,000",
-                students: "Up to 1,000 students",
-                features: ["2,000 exam attempts", "All exam types", "AI grading", "Priority support", "School analytics"],
+                features: ["2,000 exam attempts", "All exam types", "MCQ + written", "AI grading with teacher review", "Priority support", "School-wide analytics"],
                 highlight: true,
               },
               {
                 name: "Institution",
                 credits: "Unlimited",
                 price: "Custom",
-                students: "Unlimited students",
-                features: ["Unlimited attempts", "All exam types", "AI grading", "Dedicated manager", "SLA guarantee"],
+                features: ["Unlimited exam attempts", "All exam types", "AI grading with teacher review", "Dedicated account manager", "Uptime SLA"],
                 highlight: false,
               },
-            ].map(({ name, credits, price, students, features, highlight }) => (
+            ].map(({ name, credits, price, features, highlight }) => (
               <FadeUp key={name}>
-                <div className={`h-full rounded-[24px] p-7 flex flex-col gap-5 relative overflow-hidden transition-all ${
-                  highlight
-                    ? "border border-[#1a7fe8]/40 bg-gradient-to-b from-[#1a7fe8]/10 to-[#7c3aed]/5"
-                    : "border border-white/[0.07] bg-white/[0.02]"
-                }`}>
+                {/* outer wrapper gives the badge somewhere to live outside overflow-hidden */}
+                <div className="relative" style={{ paddingTop: highlight ? "20px" : "0" }}>
                   {highlight && (
-                    <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#1a7fe8] to-transparent" />
-                  )}
-                  {highlight && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] text-white"
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] text-white whitespace-nowrap"
                       style={{ background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" }}>
                       Most Popular
                     </div>
                   )}
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/40 mb-2">{name}</div>
-                    <div className="flex items-baseline gap-1.5 mb-1">
-                      <span className="text-[38px] font-black tracking-tight leading-none">{credits}</span>
-                      {credits !== "Unlimited" && <span className="text-[13px] text-white/30 font-medium">credits</span>}
+                  <div className={`h-full rounded-[24px] p-7 flex flex-col gap-5 relative overflow-hidden transition-all ${
+                    highlight
+                      ? "border border-[#1a7fe8]/40 bg-gradient-to-b from-[#1a7fe8]/10 to-[#7c3aed]/5"
+                      : "border border-white/[0.07] bg-white/[0.02]"
+                  }`}>
+                    {highlight && (
+                      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#1a7fe8] to-transparent" />
+                    )}
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/40 mb-2">{name}</div>
+                      <div className="flex items-baseline gap-1.5 mb-1">
+                        <span className="text-[38px] font-black tracking-tight leading-none">{credits}</span>
+                        {credits !== "Unlimited" && <span className="text-[13px] text-white/30 font-medium">credits</span>}
+                      </div>
+                      <div className={`text-[14px] font-semibold mb-1 ${highlight ? "text-[#1a7fe8]" : "text-white/50"}`}>
+                        {price === "Custom" ? "Custom quote" : `₦${price} / term`}
+                      </div>
+                      <div className="text-[12px] text-white/25">1 credit = 1 exam attempt</div>
                     </div>
-                    <div className={`text-[14px] font-semibold mb-1 ${highlight ? "text-[#1a7fe8]" : "text-white/50"}`}>
-                      {price === "Custom" ? "Custom quote" : `₦${price} / term`}
-                    </div>
-                    <div className="text-[12px] text-white/30">{students}</div>
+                    <ul className="space-y-2.5 flex-1">
+                      {features.map(f => (
+                        <li key={f} className="flex items-center gap-2.5 text-[13px] text-white/55">
+                          <CheckCircle className="h-3.5 w-3.5 text-[#1a7fe8] flex-shrink-0" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    <button onClick={name === "Institution" ? bookDemo : bookDemo}
+                      className={`w-full py-3 rounded-full text-[13.5px] font-bold cursor-pointer transition-all hover:brightness-110 active:scale-[0.97] ${
+                        highlight
+                          ? "text-white"
+                          : "text-white/70 border border-white/10 hover:text-white hover:border-white/20"
+                      }`}
+                      style={highlight ? { background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" } : {}}>
+                      {name === "Institution" ? "Talk to us on WhatsApp" : "Book a Demo"}
+                    </button>
                   </div>
-                  <ul className="space-y-2.5 flex-1">
-                    {features.map(f => (
-                      <li key={f} className="flex items-center gap-2.5 text-[13px] text-white/50">
-                        <CheckCircle className="h-3.5 w-3.5 text-[#1a7fe8] flex-shrink-0" />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <button onClick={name === "Institution" ? bookDemo : login}
-                    className={`w-full py-3 rounded-full text-[13.5px] font-bold cursor-pointer transition-all hover:brightness-110 active:scale-[0.97] ${
-                      highlight
-                        ? "text-white"
-                        : "text-white/70 border border-white/10 hover:text-white hover:border-white/20"
-                    }`}
-                    style={highlight ? { background: "linear-gradient(135deg, #1a7fe8, #7c3aed)" } : {}}>
-                    {name === "Institution" ? "Contact us" : "Get started"}
-                  </button>
                 </div>
               </FadeUp>
             ))}
           </div>
+
+          {/* Credit clarification note */}
+          <FadeUp>
+            <p className="text-center text-[13px] text-white/30 mb-12 max-w-2xl mx-auto leading-relaxed">
+              <strong className="text-white/50">How credits work:</strong> each student exam attempt uses one credit.
+              Credits never expire and roll over between terms.
+              If you run out mid-term, students see a friendly message and no in-progress work is lost —
+              top up any time by contacting us on WhatsApp.
+            </p>
+          </FadeUp>
 
           <FadeUp>
             <div className="rounded-[24px] border border-white/[0.06] overflow-hidden grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-white/[0.06]">
@@ -745,8 +875,8 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         </div>
       </section>
 
-      {/* ── Final CTA + Contact ── */}
-      <section id="contact" className="py-32 relative overflow-hidden">
+      {/* ── Final CTA ── */}
+      <section className="py-32 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-[#03060d] via-[#07101e] to-[#03060d]" />
         <div className="absolute inset-0 opacity-30"
           style={{ backgroundImage: "radial-gradient(circle at 50% 50%, #1a7fe820, transparent 70%)" }} />
@@ -754,17 +884,17 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           <h2 className="text-[40px] sm:text-[58px] font-black tracking-tight leading-[1.05] mb-6">
             Ready to modernise your school?
           </h2>
-          <p className="text-[16px] text-white/40 leading-relaxed mb-10">
-            Let us walk you through the platform live. 30 minutes, no commitment. We'll show you how to run your first exam the same day.
+          <p className="text-[16px] text-white/50 leading-relaxed mb-10">
+            30 minutes, no commitment. We'll walk you through the platform live and run your first exam the same day.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href={`https://wa.me/${WHATSAPP_NUMBER}?text=Hi%2C%20I%27d%20like%20to%20book%20a%20demo%20of%20Mmuta%20for%20my%20school.`}
+              href={`https://wa.me/${WHATSAPP_NUMBER}?text=Hello%2C%20I%27d%20like%20a%20demo%20of%20Mmuta%20for%20my%20school.`}
               target="_blank" rel="noopener noreferrer"
-              className="group inline-flex items-center gap-3 px-10 py-4 text-[16px] font-bold rounded-full text-white cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.97]"
+              className="group inline-flex items-center gap-3 px-10 py-4 text-[16px] font-bold rounded-full text-white transition-all hover:scale-[1.02] active:scale-[0.97]"
               style={{ background: "#25d366", boxShadow: "0 0 60px rgba(37,211,102,0.25)" }}>
               <MessageCircle className="h-5 w-5 fill-white" />
-              Chat on WhatsApp
+              Book a Demo on WhatsApp
             </a>
             <button onClick={login}
               className="inline-flex items-center justify-center gap-2 px-10 py-4 text-[16px] font-semibold rounded-full border border-white/10 text-white/70 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all cursor-pointer">
