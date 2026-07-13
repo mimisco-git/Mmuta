@@ -369,7 +369,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 <span className="h-2.5 w-2.5 rounded-full bg-red-500/60" />
                 <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
                 <span className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
-                <span className="ml-3 text-[11px] text-white/25 font-mono">Mmuta Exam — MTH 301</span>
+                <span className="ml-3 text-[11px] text-white/25 font-mono">Mmuta Exam · MTH 301</span>
               </div>
               {/* exam screen */}
               <div className="p-5 space-y-4">
@@ -487,7 +487,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 <span className="h-2.5 w-2.5 rounded-full bg-red-500/60" />
                 <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
                 <span className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
-                <span className="ml-3 text-[11px] text-white/25 font-mono">Staff Dashboard — Exam Management</span>
+                <span className="ml-3 text-[11px] text-white/25 font-mono">Staff Dashboard · Exam Management</span>
               </div>
               <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {/* Sidebar */}
@@ -519,7 +519,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                   </div>
                   {[
                     { name: "Mid-Semester Exam", date: "15 Mar 2026", students: 142, status: "Completed", score: "Avg: 71%" },
-                    { name: "Quiz 3 — Integrals", date: "28 Feb 2026", students: 138, status: "Completed", score: "Avg: 68%" },
+                    { name: "Quiz 3: Integrals", date: "28 Feb 2026", students: 138, status: "Completed", score: "Avg: 68%" },
                     { name: "Final Exam", date: "20 Apr 2026", students: 142, status: "Upcoming", score: "" },
                   ].map(exam => (
                     <div key={exam.name} className="flex items-center gap-3 p-3 rounded-[12px] border border-white/[0.06]"
@@ -574,7 +574,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               accent: "#7c3aed",
               label: "Mmuta Grade",
               title: "AI reads and marks essays in minutes",
-              desc: "Upload your answer key and marking scheme. The AI grades every written response, allocates marks, and writes feedback — no human effort required.",
+              desc: "Upload your answer key and marking scheme. The AI grades every written response, allocates marks, and writes feedback. No human effort required.",
               pills: ["AI essay grading", "Custom mark schemes", "Bulk grading", "Per-question feedback"],
               big: true,
             },
@@ -675,7 +675,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { n: "01", title: "Register your school", desc: "Your school gets a unique code. Staff and students use it to join — no spreadsheets needed." },
+              { n: "01", title: "Register your school", desc: "Your school gets a unique code. Staff and students use it to join. No spreadsheets needed." },
               { n: "02", title: "Add staff and students", desc: "Import students via CSV or add individually. Teachers register with your school code in seconds." },
               { n: "03", title: "Create and publish exams", desc: "Upload a PDF question paper or type questions directly. Set a time window and publish to any course." },
               { n: "04", title: "Get results instantly", desc: "AI grades essays the moment students submit. MCQ exams are auto-scored. Results are live within minutes." },
@@ -708,7 +708,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 Before Mmuta existed as software, we built and operated physical CBT centers. We know what exam day looks like at 7 AM when the generator dies, when NEPA takes light at 9:45 AM, and when a student swears he submitted but the system shows nothing.
               </p>
               <p className="text-[16px] text-white/50 leading-relaxed mb-8">
-                Mmuta is everything we learned from running those halls — put into a platform any school can use without needing IT staff, a server room, or a dedicated CBT building.
+                Mmuta is everything we learned from running those halls, put into a platform any school can use without needing IT staff, a server room, or a dedicated CBT building.
               </p>
               <div className="flex flex-col gap-3">
                 {[
@@ -729,7 +729,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               <div className="rounded-[24px] border border-white/[0.07] p-8 space-y-6" style={{ background: "rgba(255,255,255,0.02)" }}>
                 <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/30">From the team</p>
                 <blockquote className="text-[18px] sm:text-[22px] font-semibold leading-[1.4] text-white/80">
-                  "Every Nigerian school deserves exam infrastructure as good as the best private universities — without the ₦50 million price tag."
+                  "Every Nigerian school deserves exam infrastructure as good as the best private universities, without the ₦50 million price tag."
                 </blockquote>
                 <div className="flex items-center gap-3 pt-2 border-t border-white/[0.06]">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-[14px]"
@@ -743,7 +743,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 </div>
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   {[
-                    { val: "Pilot school", label: "spot still open — talk to us" },
+                    { val: "Pilot school", label: "spot still open, talk to us" },
                     { val: "Day 1", label: "ready to onboard your school" },
                   ].map(({ val, label }) => (
                     <div key={label} className="rounded-[14px] border border-white/[0.06] p-4" style={{ background: "rgba(255,255,255,0.02)" }}>
@@ -767,7 +767,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               Credit-based. Pay as you go.
             </h2>
             <p className="text-[16px] text-white/40 max-w-xl mx-auto leading-relaxed">
-              Buy exam credits. Each student exam attempt costs one credit. No monthly fees, no per-seat subscriptions — pay for what you actually use.
+              Buy exam credits. Each student exam attempt costs one credit. No monthly fees, no per-seat subscriptions. Pay for what you actually use.
             </p>
           </FadeUp>
 
@@ -851,8 +851,8 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <p className="text-center text-[13px] text-white/30 mb-12 max-w-2xl mx-auto leading-relaxed">
               <strong className="text-white/50">How credits work:</strong> each student exam attempt uses one credit.
               Credits never expire and roll over between terms.
-              If you run out mid-term, students see a friendly message and no in-progress work is lost —
-              top up any time by contacting us on WhatsApp.
+              If you run out mid-term, students see a friendly message and no in-progress work is lost.
+              Top up any time by contacting us on WhatsApp.
             </p>
           </FadeUp>
 
